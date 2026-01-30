@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="pop_yellow">#FFDE59</color>
+    <color name="pop_green">#00FF9D</color>
+    <color name="pop_pink">#FF4D6D</color>
+    <color name="pop_blue">#A9DEF9</color>
+
+    <color name="colorPrimary">#FFDE59</color>
+    <color name="colorPrimaryVariant">#FFDE59</color>
+    <color name="colorOnPrimary">#000000</color>
+</resources>
