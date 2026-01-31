@@ -67,7 +67,14 @@ public class LoginActivity extends AppCompatActivity {
                     Toast.makeText(LoginActivity.this, "¡Bienvenido!", Toast.LENGTH_SHORT).show();
                     irAMain();
                 } else {
-                    Toast.makeText(LoginActivity.this, "Credenciales incorrectas", Toast.LENGTH_ERROR).show();
+                    try {
+                        String errorBody = response.errorBody() != null ? response.errorBody().string() : "Sin detalles";
+                        int codigo = response.code();
+                        Toast.makeText(LoginActivity.this, "Error Servidor: " + codigo + "\n" + errorBody, Toast.LENGTH_LONG).show();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Toast.makeText(LoginActivity.this, "Error desconocido: " + response.code(), Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
 
