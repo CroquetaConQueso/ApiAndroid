@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="pop_yellow">#FFDE59</color>
-    <color name="pop_green">#00FF9D</color>
-    <color name="pop_pink">#FF4D6D</color>
-    <color name="pop_blue">#A9DEF9</color>
+    <color name="pop_yellow">#FFD700</color>
+    <color name="pop_green">#00E676</color>
+    <color name="pop_blue">#2979FF</color>
+    <color name="pop_red">#FF1744</color>
+    <color name="pop_black">#212121</color>
+    <color name="pop_white">#FFFFFF</color>
+    <color name="pop_gray_bg">#FAFAFA</color>
 
-    <color name="colorPrimary">#FFDE59</color>
-    <color name="colorPrimaryVariant">#FFDE59</color>
-    <color name="colorOnPrimary">#000000</color>
+    <color name="black">@color/pop_black</color>
+    <color name="white">@color/pop_white</color>
+    <color name="colorPrimary">@color/pop_yellow</color>
+    <color name="colorOnPrimary">@color/pop_black</color>
+    <color name="statusBarColor">@color/pop_yellow</color>
 </resources>

@@ -1,64 +1,143 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="32dp"
-    android:gravity="center"
-    android:background="#FAFAFA">
+    android:background="@color/pop_yellow">
 
     <TextView
+        android:id="@+id/tvTitulo"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="CONTROL\nPRESENCIA"
+        android:text="ACCESO\nEMPLEADOS"
         android:textSize="40sp"
         android:textStyle="bold"
-        android:textColor="@color/black"
-        android:gravity="center"
-        android:layout_marginBottom="40dp"/>
+        android:textColor="@color/pop_black"
+        android:textAlignment="center"
+        android:lineSpacingExtra="-8dp"
+        android:layout_marginTop="60dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
-    <TextView
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="DNI / NIF"
-        android:textStyle="bold"
-        android:layout_marginBottom="4dp"/>
+        android:layout_marginHorizontal="32dp"
+        app:cardBackgroundColor="@color/white"
+        app:cardCornerRadius="0dp"
+        app:strokeColor="@color/pop_black"
+        app:strokeWidth="4dp"
+        app:cardElevation="10dp"
+        app:layout_constraintTop_toBottomOf="@+id/tvTitulo"
+        app:layout_constraintBottom_toBottomOf="parent">
 
-    <EditText
-        android:id="@+id/etNif"
-        android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:background="@drawable/bg_pop_input"
-        android:paddingHorizontal="16dp"
-        android:hint="12345678X"
-        android:layout_marginBottom="20dp"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="CONTRASEÑA"
-        android:textStyle="bold"
-        android:layout_marginBottom="4dp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/pop_red"
+                android:text="ZONA SEGURA"
+                app:drawableStartCompat="@drawable/ic_pop_lock"
+                app:drawableTint="@color/white"
+                android:drawablePadding="8dp"
+                android:gravity="center"
 
-    <EditText
-        android:id="@+id/etPassword"
-        android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:background="@drawable/bg_pop_input"
-        android:paddingHorizontal="16dp"
-        android:inputType="textPassword"
-        android:layout_marginBottom="40dp"/>
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:padding="10dp"
+                android:letterSpacing="0.15"/>
 
-    <androidx.appcompat.widget.AppCompatButton
-        android:id="@+id/btnLogin"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="@drawable/bg_pop_button"
-        android:text="ENTRAR AL SISTEMA"
-        android:textStyle="bold"
-        android:textSize="18sp"
-        android:textColor="@color/black"
-        android:elevation="0dp"
-        android:stateListAnimator="@null"/>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="32dp">
 
-</LinearLayout>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NIF / USUARIO"
+                    app:drawableStartCompat="@drawable/ic_pop_user"
+                    app:drawableTint="@color/pop_black"
+                    android:drawablePadding="8dp"
+                    android:gravity="center_vertical"
+
+                    android:textStyle="bold"
+                    android:textColor="@color/pop_black"
+                    android:layout_marginBottom="8dp"/>
+
+                <EditText
+                    android:id="@+id/etNif"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:background="@drawable/bg_pop_input"
+                    android:paddingHorizontal="16dp"
+                    android:hint="Ej: 12345678A"
+                    android:textColor="@color/pop_black"
+                    android:inputType="textCapCharacters"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="CONTRASEÑA"
+                    app:drawableStartCompat="@drawable/ic_pop_key"
+                    app:drawableTint="@color/pop_black"
+                    android:drawablePadding="8dp"
+                    android:gravity="center_vertical"
+
+                    android:textStyle="bold"
+                    android:textColor="@color/pop_black"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp"/>
+
+                <EditText
+                    android:id="@+id/etPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="50dp"
+                    android:background="@drawable/bg_pop_input"
+                    android:paddingHorizontal="16dp"
+                    android:inputType="textPassword"
+                    android:textColor="@color/pop_black"
+                    android:hint="******"/>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnLogin"
+                    android:layout_width="match_parent"
+                    android:layout_height="60dp"
+                    android:layout_marginTop="32dp"
+                    android:text="ENTRAR AHORA"
+                    android:textStyle="bold"
+                    android:textSize="18sp"
+                    android:textColor="@color/white"
+                    app:backgroundTint="@color/pop_blue"
+                    app:strokeColor="@color/pop_black"
+                    app:strokeWidth="2dp"
+                    app:cornerRadius="0dp"/>
+
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/pop_green"
+                android:text="SISTEMA ONLINE v1.0"
+                app:drawableStartCompat="@drawable/ic_pop_check"
+                app:drawableTint="@color/pop_black"
+                android:drawablePadding="6dp"
+                android:gravity="center"
+
+                android:textColor="@color/pop_black"
+                android:textStyle="bold"
+                android:padding="6dp"
+                android:textSize="12sp"/>
+
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
