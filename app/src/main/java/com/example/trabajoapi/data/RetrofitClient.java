@@ -10,10 +10,9 @@ public class RetrofitClient {
     private ApiService myApi;
 
 
-    private static final String BASE_URL = "https://SQulito.pythonanywhere.com/";
+    private static final String BASE_URL = "https://SQulito.eu.pythonanywhere.com/";
 
     private RetrofitClient() {
-
         OkHttpClient client = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)

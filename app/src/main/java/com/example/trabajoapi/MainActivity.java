@@ -19,7 +19,10 @@ import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
 import com.google.android.gms.tasks.OnSuccessListener;
+
+import org.json.JSONObject;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -45,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
         btnFichar.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Toast.makeText(MainActivity.this, "Localizando...", Toast.LENGTH_SHORT).show();
                 checkPermissionsAndFichar();
             }
         });
@@ -73,16 +77,17 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        fusedLocationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
-            @Override
-            public void onSuccess(Location location) {
-                if (location != null) {
-                    enviarFichaje(location.getLatitude(), location.getLongitude());
-                } else {
-                    Toast.makeText(MainActivity.this, "Activa el GPS o abre Google Maps para refrescarlo", Toast.LENGTH_LONG).show();
-                }
-            }
-        });
+        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                    @Override
+                    public void onSuccess(Location location) {
+                        if (location != null) {
+                            enviarFichaje(location.getLatitude(), location.getLongitude());
+                        } else {
+                            Toast.makeText(MainActivity.this, "GPS dormido. Abre Maps para despertar.", Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
     }
 
     private void enviarFichaje(double lat, double lon) {
@@ -97,14 +102,28 @@ public class MainActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     String tipo = response.body().getTipo();
                     Toast.makeText(MainActivity.this, "✅ " + tipo + " REGISTRADA", Toast.LENGTH_LONG).show();
+                } else if (response.code() == 401 || response.code() == 422) {
+                    sessionManager.clearSession();
+                    startActivity(new Intent(MainActivity.this, LoginActivity.class));
+                    finish();
+                    Toast.makeText(MainActivity.this, "Sesión caducada", Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(MainActivity.this, "Error: " + response.code(), Toast.LENGTH_SHORT).show();
+                    try {
+                        String errorJson = response.errorBody() != null ? response.errorBody().string() : "{}";
+                        JSONObject jsonObject = new JSONObject(errorJson);
+                        String mensaje = jsonObject.optString("message", "Error desconocido");
+
+                        // Mostramos solo el mensaje limpio del servidor
+                        Toast.makeText(MainActivity.this, "⛔ " + mensaje, Toast.LENGTH_LONG).show();
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, "Error: " + response.code(), Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
 
             @Override
             public void onFailure(Call<FichajeResponse> call, Throwable t) {
-                Toast.makeText(MainActivity.this, "Fallo de red: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "Fallo de red: " + t.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -115,8 +134,6 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == PERMISSION_ID) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 obtenerUbicacionYFichar();
-            } else {
-                Toast.makeText(this, "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show();
             }
         }
     }

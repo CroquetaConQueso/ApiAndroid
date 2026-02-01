@@ -30,7 +30,6 @@ public class LoginActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
-        // Si ya hay sesión, ir al Main
         if (sessionManager.getAuthToken() != null) {
             irAMain();
         }
@@ -68,9 +67,10 @@ public class LoginActivity extends AppCompatActivity {
                     irAMain();
                 } else {
                     try {
+                        String urlUsada = call.request().url().toString();
                         String errorBody = response.errorBody() != null ? response.errorBody().string() : "Sin detalles";
                         int codigo = response.code();
-                        Toast.makeText(LoginActivity.this, "Error Servidor: " + codigo + "\n" + errorBody, Toast.LENGTH_LONG).show();
+                        Toast.makeText(LoginActivity.this, "URL: " + urlUsada + "\nError: " + codigo, Toast.LENGTH_LONG).show();
                     } catch (Exception e) {
                         e.printStackTrace();
                         Toast.makeText(LoginActivity.this, "Error desconocido: " + response.code(), Toast.LENGTH_SHORT).show();
