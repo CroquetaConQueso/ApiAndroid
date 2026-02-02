@@ -19,4 +19,7 @@ public interface ApiService {
 
     @GET("api/mis-fichajes")
     Call<List<FichajeResponse>> obtenerHistorial(@Header("Authorization") String token);
+
+    @POST("reset-password")
+    Call<Void> resetPassword(@Body ResetPasswordRequest request);
 }
