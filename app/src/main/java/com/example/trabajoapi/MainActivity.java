@@ -1,8 +1,7 @@
 package com.example.trabajoapi;
 
 import android.Manifest;
-import android.app.DatePickerDialog; // Importante para Incidencias
-import android.content.DialogInterface;
+import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -11,12 +10,12 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ArrayAdapter; // Importante para el Spinner
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.Spinner; // Importante para el Spinner
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -26,11 +25,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-// Tus clases de datos
 import com.example.trabajoapi.data.ChangePasswordRequest;
 import com.example.trabajoapi.data.FichajeRequest;
 import com.example.trabajoapi.data.FichajeResponse;
-import com.example.trabajoapi.data.IncidenciaRequest; // Nueva
+import com.example.trabajoapi.data.IncidenciaHelper; // <--- IMPORTANTE: Tu nuevo Helper
+import com.example.trabajoapi.data.IncidenciaRequest;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
 
@@ -42,7 +41,7 @@ import com.google.android.material.button.MaterialButton;
 
 import org.json.JSONObject;
 
-import java.util.Calendar; // Para el calendario
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
@@ -55,6 +54,9 @@ public class MainActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
     private static final int PERMISSION_ID = 44;
+
+    // Helper para limpiar código
+    private IncidenciaHelper incidenciaHelper;
 
     private MaterialButton btnFicharDinamico;
     private TextView tvEstadoActual;
@@ -70,13 +72,18 @@ public class MainActivity extends AppCompatActivity {
         sessionManager = new SessionManager(this);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
+        // Inicializamos el Helper de Incidencias
+        // Le pasamos 'this' (contexto), la API y la sesión
+        incidenciaHelper = new IncidenciaHelper(this, RetrofitClient.getInstance().getMyApi(), sessionManager);
+
         // Referencias a la UI
         btnFicharDinamico = findViewById(R.id.btnFicharDinamico);
         tvEstadoActual = findViewById(R.id.tvEstadoActual);
 
         Button btnLogout = findViewById(R.id.btnBannerLogout);
         Button btnCambiarClave = findViewById(R.id.btnCambiarClave);
-        Button btnIncidencia = findViewById(R.id.btnIncidencia); // Botón de incidencias
+        Button btnIncidencia = findViewById(R.id.btnIncidencia);
+        Button btnVerEstado = findViewById(R.id.btnVerEstado);
 
         // 1. Listener FICHAR
         btnFicharDinamico.setOnClickListener(v -> {
@@ -99,15 +106,22 @@ public class MainActivity extends AppCompatActivity {
             btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
         }
 
-        // 4. Listener SOLICITAR INCIDENCIA
+        // 4. Listener SOLICITAR INCIDENCIA (Crear)
         if (btnIncidencia != null) {
             btnIncidencia.setOnClickListener(v -> mostrarDialogoIncidencia());
+        }
+
+        // 5. Listener VER HISTORIAL (Nuevo - Usa el Helper)
+        if (btnVerEstado != null) {
+            btnVerEstado.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
         }
     }
 
     // ==========================================
     //       LÓGICA: SOLICITAR INCIDENCIA
     // ==========================================
+    // NOTA: Mantenemos esto aquí por ahora.
+    // Idealmente, podrías mover este método también a IncidenciaHelper.java en el futuro.
 
     private void mostrarDialogoIncidencia() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -117,14 +131,14 @@ public class MainActivity extends AppCompatActivity {
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(50, 20, 50, 20);
 
-        // Selector de Tipo - AÑADIDO "OLVIDO"
+        // Selector de Tipo
         final Spinner spinnerTipo = new Spinner(this);
-        String[] tipos = {"VACACIONES", "BAJA", "ASUNTOS_PROPIOS", "HORAS_EXTRA", "OLVIDO"}; // <--- AQUÍ
+        String[] tipos = {"VACACIONES", "BAJA", "ASUNTOS_PROPIOS", "HORAS_EXTRA", "OLVIDO"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, tipos);
         spinnerTipo.setAdapter(adapter);
         layout.addView(spinnerTipo);
 
-        // Fechas (Inputs de solo lectura que abren calendario)
+        // Fechas
         final EditText etInicio = new EditText(this);
         etInicio.setHint("Fecha Inicio (Toca aquí)");
         etInicio.setFocusable(false);
@@ -188,31 +202,22 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         String errorBody = response.errorBody().string();
                         JSONObject jsonObject = new JSONObject(errorBody);
-
-                        // LÓGICA DE DIAGNÓSTICO: MOSTRAR TODO EL JSON DE ERROR
                         String mensaje = "";
 
                         if (jsonObject.has("errors")) {
-                            // Si hay errores de validación, mostramos el contenido completo
                             mensaje = "DETALLE: " + jsonObject.getJSONObject("errors").toString();
                         } else if (jsonObject.has("message")) {
                             mensaje = jsonObject.getString("message");
                         } else {
                             mensaje = "Error " + response.code();
                         }
-
-                        // Mostramos el mensaje largo para poder leerlo
                         mostrarToastPop(mensaje, false);
-                        // También lo imprimimos en el Logcat por si es muy largo
-                        System.out.println("ERROR API: " + errorBody);
 
                     } catch (Exception e) {
                         mostrarToastPop("Error Servidor: " + response.code(), false);
-                        e.printStackTrace();
                     }
                 }
             }
-
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
                 mostrarToastPop("Error Red: " + t.getMessage(), false);
@@ -271,25 +276,17 @@ public class MainActivity extends AppCompatActivity {
                 if (response.isSuccessful()) {
                     mostrarToastPop("¡Contraseña cambiada!", true);
                 } else {
-                    // Lectura detallada del error
                     try {
                         String errorBody = response.errorBody().string();
                         JSONObject jsonObject = new JSONObject(errorBody);
                         String mensaje = jsonObject.optString("message");
-
-                        if (mensaje.isEmpty() && jsonObject.has("errors")) {
-                            mensaje = "Revisa los datos (mínimo 6 caracteres)";
-                        }
-
                         if (mensaje.isEmpty()) mensaje = "Error al cambiar clave";
-
                         mostrarToastPop(mensaje, false);
                     } catch (Exception e) {
-                        mostrarToastPop("Contraseña incorrecta o datos inválidos", false);
+                        mostrarToastPop("Datos inválidos", false);
                     }
                 }
             }
-
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
                 mostrarToastPop("Error de red", false);
@@ -317,7 +314,6 @@ public class MainActivity extends AppCompatActivity {
             public void onResponse(Call<List<FichajeResponse>> call, Response<List<FichajeResponse>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     List<FichajeResponse> historial = response.body();
-
                     if (!historial.isEmpty() && "ENTRADA".equalsIgnoreCase(historial.get(0).getTipo())) {
                         actualizarBoton(true);
                     } else {
@@ -350,7 +346,6 @@ public class MainActivity extends AppCompatActivity {
             tvEstadoActual.setTextColor(ContextCompat.getColor(this, R.color.pop_blue));
             tvEstadoActual.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_pop_work, 0);
             tvEstadoActual.setCompoundDrawablePadding(16);
-
         } else {
             btnFicharDinamico.setText("FICHAR\nENTRADA");
             btnFicharDinamico.setIcon(ContextCompat.getDrawable(this, R.drawable.ic_fichaje_entrada));
@@ -411,23 +406,13 @@ public class MainActivity extends AppCompatActivity {
                     String tipo = response.body().getTipo();
                     mostrarToastPop(tipo + " EXITOSA", true);
                     actualizarBoton(tipo.equalsIgnoreCase("ENTRADA"));
-
                 } else if (response.code() == 401 || response.code() == 422) {
                     irALogin();
                 } else {
-                    try {
-                        String errorBody = response.errorBody() != null ? response.errorBody().string() : "{}";
-                        JSONObject jsonObject = new JSONObject(errorBody);
-                        String mensaje = jsonObject.optString("message", "Error desconocido");
-                        mostrarToastPop(mensaje, false);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        mostrarToastPop("Error Servidor: " + response.code(), false);
-                    }
+                    mostrarToastPop("Error: Fichaje rechazado", false);
                     consultarEstadoServidor();
                 }
             }
-
             @Override
             public void onFailure(Call<FichajeResponse> call, Throwable t) {
                 mostrarToastPop("Error Red: " + t.getMessage(), false);
