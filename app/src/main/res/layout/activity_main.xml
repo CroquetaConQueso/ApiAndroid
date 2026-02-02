@@ -100,9 +100,46 @@
         app:iconPadding="10dp"
         android:elevation="10dp"
         app:layout_constraintTop_toBottomOf="@+id/cardEstado"
+        app:layout_constraintBottom_toTopOf="@+id/btnCambiarClave"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintVertical_bias="0.45"/>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnIncidencia"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:text="SOLICITAR VACACIONES / BAJA"
+        android:textColor="@color/pop_black"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        app:backgroundTint="@color/pop_yellow"
+        app:strokeColor="@color/pop_black"
+        app:strokeWidth="2dp"
+        app:cornerRadius="0dp"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginBottom="12dp"
+        app:layout_constraintBottom_toTopOf="@+id/btnCambiarClave"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCambiarClave"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:text="CAMBIAR CONTRASEÑA"
+        android:textColor="@color/pop_black"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        app:backgroundTint="@color/white"
+        app:strokeColor="@color/pop_black"
+        app:strokeWidth="2dp"
+        app:cornerRadius="0dp"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginBottom="12dp"
         app:layout_constraintBottom_toTopOf="@+id/btnBannerLogout"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"/>
 
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/btnBannerLogout"
@@ -113,7 +150,8 @@
         android:textColor="@color/white"
         android:textStyle="bold"
         android:textSize="16sp"
-        android:layout_margin="20dp"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginBottom="20dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
