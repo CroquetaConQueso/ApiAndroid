@@ -1,7 +1,6 @@
 package com.example.trabajoapi;
 
 import android.Manifest;
-import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
@@ -10,12 +9,10 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -28,8 +25,7 @@ import androidx.core.content.ContextCompat;
 import com.example.trabajoapi.data.ChangePasswordRequest;
 import com.example.trabajoapi.data.FichajeRequest;
 import com.example.trabajoapi.data.FichajeResponse;
-import com.example.trabajoapi.data.IncidenciaHelper; // <--- IMPORTANTE: Tu nuevo Helper
-import com.example.trabajoapi.data.IncidenciaRequest;
+import com.example.trabajoapi.data.IncidenciaHelper;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
 
@@ -41,9 +37,7 @@ import com.google.android.material.button.MaterialButton;
 
 import org.json.JSONObject;
 
-import java.util.Calendar;
 import java.util.List;
-import java.util.Locale;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -54,10 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
     private static final int PERMISSION_ID = 44;
-
-    // Helper para limpiar código
     private IncidenciaHelper incidenciaHelper;
-
     private MaterialButton btnFicharDinamico;
     private TextView tvEstadoActual;
     private boolean estaDentro = false;
@@ -72,11 +63,9 @@ public class MainActivity extends AppCompatActivity {
         sessionManager = new SessionManager(this);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Inicializamos el Helper de Incidencias
-        // Le pasamos 'this' (contexto), la API y la sesión
+        // Inicializamos el Helper pasando el contexto
         incidenciaHelper = new IncidenciaHelper(this, RetrofitClient.getInstance().getMyApi(), sessionManager);
 
-        // Referencias a la UI
         btnFicharDinamico = findViewById(R.id.btnFicharDinamico);
         tvEstadoActual = findViewById(R.id.tvEstadoActual);
 
@@ -85,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnIncidencia = findViewById(R.id.btnIncidencia);
         Button btnVerEstado = findViewById(R.id.btnVerEstado);
 
-        // 1. Listener FICHAR
+        // 1. Fichar
         btnFicharDinamico.setOnClickListener(v -> {
             btnFicharDinamico.setEnabled(false);
             btnFicharDinamico.setText("Procesando...");
@@ -93,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
             checkPermissionsAndFichar();
         });
 
-        // 2. Listener LOGOUT
+        // 2. Logout
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
                 sessionManager.clearSession();
@@ -101,134 +90,22 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        // 3. Listener CAMBIAR CONTRASEÑA
+        // 3. Cambiar Clave
         if (btnCambiarClave != null) {
             btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
         }
 
-        // 4. Listener SOLICITAR INCIDENCIA (Crear)
+        // 4. Solicitar Incidencia (AHORA USAMOS EL HELPER)
         if (btnIncidencia != null) {
-            btnIncidencia.setOnClickListener(v -> mostrarDialogoIncidencia());
+            btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
         }
 
-        // 5. Listener VER HISTORIAL (Nuevo - Usa el Helper)
+        // 5. Ver Historial (AHORA USAMOS EL HELPER)
         if (btnVerEstado != null) {
             btnVerEstado.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
         }
     }
 
-    // ==========================================
-    //       LÓGICA: SOLICITAR INCIDENCIA
-    // ==========================================
-    // NOTA: Mantenemos esto aquí por ahora.
-    // Idealmente, podrías mover este método también a IncidenciaHelper.java en el futuro.
-
-    private void mostrarDialogoIncidencia() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("NUEVA INCIDENCIA");
-
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 20, 50, 20);
-
-        // Selector de Tipo
-        final Spinner spinnerTipo = new Spinner(this);
-        String[] tipos = {"VACACIONES", "BAJA", "ASUNTOS_PROPIOS", "HORAS_EXTRA", "OLVIDO"};
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, tipos);
-        spinnerTipo.setAdapter(adapter);
-        layout.addView(spinnerTipo);
-
-        // Fechas
-        final EditText etInicio = new EditText(this);
-        etInicio.setHint("Fecha Inicio (Toca aquí)");
-        etInicio.setFocusable(false);
-        etInicio.setOnClickListener(v -> mostrarCalendario(etInicio));
-        layout.addView(etInicio);
-
-        final EditText etFin = new EditText(this);
-        etFin.setHint("Fecha Fin (Toca aquí)");
-        etFin.setFocusable(false);
-        etFin.setOnClickListener(v -> mostrarCalendario(etFin));
-        layout.addView(etFin);
-
-        // Comentario
-        final EditText etComentario = new EditText(this);
-        etComentario.setHint("Motivo (Opcional)");
-        layout.addView(etComentario);
-
-        builder.setView(layout);
-
-        builder.setPositiveButton("ENVIAR", (dialog, which) -> {
-            String tipo = spinnerTipo.getSelectedItem().toString();
-            String inicio = etInicio.getText().toString();
-            String fin = etFin.getText().toString();
-            String comentario = etComentario.getText().toString();
-
-            if (inicio.isEmpty() || fin.isEmpty()) {
-                mostrarToastPop("Fechas obligatorias", false);
-            } else {
-                enviarIncidenciaApi(tipo, inicio, fin, comentario);
-            }
-        });
-
-        builder.setNegativeButton("CANCELAR", (dialog, which) -> dialog.cancel());
-        builder.show();
-    }
-
-    private void mostrarCalendario(final EditText editText) {
-        Calendar cal = Calendar.getInstance();
-        int anio = cal.get(Calendar.YEAR);
-        int mes = cal.get(Calendar.MONTH);
-        int dia = cal.get(Calendar.DAY_OF_MONTH);
-
-        DatePickerDialog dpd = new DatePickerDialog(this, (view, year, month, dayOfMonth) -> {
-            String fechaFormat = String.format(Locale.getDefault(), "%04d-%02d-%02d", year, month + 1, dayOfMonth);
-            editText.setText(fechaFormat);
-        }, anio, mes, dia);
-        dpd.show();
-    }
-
-    private void enviarIncidenciaApi(String tipo, String inicio, String fin, String coment) {
-        String token = "Bearer " + sessionManager.getAuthToken();
-        IncidenciaRequest request = new IncidenciaRequest(tipo, inicio, fin, coment);
-
-        Call<Void> call = RetrofitClient.getInstance().getMyApi().crearIncidencia(token, request);
-        call.enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    mostrarToastPop("¡Solicitud Enviada!", true);
-                } else {
-                    try {
-                        String errorBody = response.errorBody().string();
-                        JSONObject jsonObject = new JSONObject(errorBody);
-                        String mensaje = "";
-
-                        if (jsonObject.has("errors")) {
-                            mensaje = "DETALLE: " + jsonObject.getJSONObject("errors").toString();
-                        } else if (jsonObject.has("message")) {
-                            mensaje = jsonObject.getString("message");
-                        } else {
-                            mensaje = "Error " + response.code();
-                        }
-                        mostrarToastPop(mensaje, false);
-
-                    } catch (Exception e) {
-                        mostrarToastPop("Error Servidor: " + response.code(), false);
-                    }
-                }
-            }
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                mostrarToastPop("Error Red: " + t.getMessage(), false);
-            }
-        });
-    }
-
-
-    // ==========================================
-    //       LÓGICA: CAMBIAR CONTRASEÑA
-    // ==========================================
 
     private void mostrarDialogoCambioPassword() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -293,11 +170,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-
-
-    // ==========================================
-    //       LÓGICA: FICHAR Y ESTADO
-    // ==========================================
 
     @Override
     protected void onResume() {
