@@ -1,15 +1,24 @@
+# --- Android Studio / Gradle ---
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+.gradle/
 local.properties
+.idea/
+caches/
+logs/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+navEditor/
+
+# --- Android App ---
+/app/build/
+
+# --- FIREBASE & SECURITY (CRÍTICO) ---
+# Este archivo contiene las claves de tu proyecto Firebase
+google-services.json
+
+# --- Keystores (Si generas APKs firmados) ---
+*.jks
+*.keystore

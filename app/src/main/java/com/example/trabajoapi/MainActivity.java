@@ -6,11 +6,9 @@ import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.location.Location;
 import android.os.Bundle;
-import android.text.Html;
 import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -36,11 +34,10 @@ import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.material.button.MaterialButton;
 
 import org.json.JSONObject;
-
 import java.util.List;
-
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -52,87 +49,101 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_ID = 44;
     private IncidenciaHelper incidenciaHelper;
 
-    // UI Elements del Nuevo XML
-    private AppCompatButton btnFicharMain;
-    private TextView tvSaldoHoras;
+    // Elementos de UI
+    private MaterialButton btnFicharMain;
+    private TextView tvHorasExtraValor;
+    private TextView tvEstadoHoras;
     private boolean estaDentro = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Ocultar Action Bar por defecto para usar nuestro diseño custom
         if (getSupportActionBar() != null) getSupportActionBar().hide();
-
         setContentView(R.layout.activity_main);
 
         sessionManager = new SessionManager(this);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         incidenciaHelper = new IncidenciaHelper(this, RetrofitClient.getInstance().getMyApi(), sessionManager);
 
-        // Binding UI con los nuevos IDs del XML rediseñado
+        // Binding
         btnFicharMain = findViewById(R.id.btnFicharMain);
-        tvSaldoHoras = findViewById(R.id.tvSaldoHoras);
+        tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
+        tvEstadoHoras = findViewById(R.id.tvEstadoHoras);
 
         ImageView btnLogout = findViewById(R.id.btnLogoutIcon);
-        TextView linkCambiarClave = findViewById(R.id.linkCambiarClave);
-
         AppCompatButton btnIncidencia = findViewById(R.id.btnIncidencia);
         AppCompatButton btnHistorial = findViewById(R.id.btnHistorial);
-        Button btnVerDetalleHoras = findViewById(R.id.btnVerDetalleHoras);
+        AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
 
-        // 1. Acción Principal: FICHAR
+        // 1. FICHAR
         btnFicharMain.setOnClickListener(v -> {
             btnFicharMain.setEnabled(false);
             btnFicharMain.setText("...");
             checkPermissionsAndFichar();
         });
 
-        // 2. Resumen Horas (Botón dentro de la tarjeta de saldo)
-        if (btnVerDetalleHoras != null) {
-            btnVerDetalleHoras.setOnClickListener(v -> mostrarResumenMensual(true));
-        }
+        // 2. INCIDENCIAS (Helper)
+        if (btnIncidencia != null) btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
 
-        // 3. Incidencias (Color AMARILLO - Warning)
-        if (btnIncidencia != null) {
-            // Personalizamos color si queremos diferenciarlo del historial
-            btnIncidencia.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_yellow)));
-            btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
-        }
+        // 3. HISTORIAL (Helper)
+        if (btnHistorial != null) btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
 
-        // 4. Historial (Color BLANCO/NEUTRO)
-        if (btnHistorial != null) {
-            btnHistorial.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.white)));
-            btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
-        }
+        // 4. CAMBIAR CLAVE
+        if (btnCambiarClave != null) btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
 
-        // 5. Utilidades (Logout y Clave)
+        // 5. LOGOUT
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
                 sessionManager.clearSession();
                 irALogin();
             });
         }
-        if (linkCambiarClave != null) {
-            linkCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
-        }
-
-        // Carga inicial de datos al abrir
-        cargarDatosDashboard();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        cargarDatosDashboard();
+        cargarDashboard();
     }
 
-    private void cargarDatosDashboard() {
+    private void cargarDashboard() {
         consultarEstadoFichaje();
-        mostrarResumenMensual(false); // false = solo actualizar texto saldo, no mostrar popup
+        obtenerCalculoHorasExtra();
     }
 
-    // --- LÓGICA DE INTERFAZ DINÁMICA ---
+    // --- LÓGICA DE HORAS EXTRA (Requisito PDF) ---
+    private void obtenerCalculoHorasExtra() {
+        String token = "Bearer " + sessionManager.getAuthToken();
+        // El backend calcula: Horas Trabajadas - Horas Teóricas
+        Call<ResumenResponse> call = RetrofitClient.getInstance().getMyApi().getResumen(token, null, null);
 
+        call.enqueue(new Callback<ResumenResponse>() {
+            @Override
+            public void onResponse(Call<ResumenResponse> call, Response<ResumenResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    ResumenResponse r = response.body();
+                    double saldo = r.getSaldo();
+
+                    if (saldo >= 0) {
+                        tvHorasExtraValor.setText("+" + saldo + " h");
+                        tvHorasExtraValor.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.pop_green)); // Verde
+                        tvEstadoHoras.setText("TIENES HORAS EXTRA ACUMULADAS");
+                    } else {
+                        tvHorasExtraValor.setText(saldo + " h");
+                        tvHorasExtraValor.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.pop_red)); // Rojo
+                        tvEstadoHoras.setText("DEBES HORAS A LA EMPRESA");
+                    }
+                }
+            }
+            @Override
+            public void onFailure(Call<ResumenResponse> call, Throwable t) {
+                tvHorasExtraValor.setText("--");
+                tvEstadoHoras.setText("Error de conexión");
+            }
+        });
+    }
+
+    // --- LÓGICA DE FICHAJE ---
     private void consultarEstadoFichaje() {
         String token = "Bearer " + sessionManager.getAuthToken();
         Call<List<FichajeResponse>> call = RetrofitClient.getInstance().getMyApi().obtenerHistorial(token);
@@ -150,8 +161,7 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override
             public void onFailure(Call<List<FichajeResponse>> call, Throwable t) {
-                // En caso de error, dejamos el estado previo pero habilitamos el botón
-                btnFicharDinamicoEnabled(true);
+                btnFicharMain.setEnabled(true);
             }
         });
     }
@@ -162,67 +172,16 @@ public class MainActivity extends AppCompatActivity {
 
         if (estoyDentro) {
             btnFicharMain.setText("FICHAR\nSALIDA");
-            // Color ROJO/ROSA para salir (Estilo Pop Danger)
-            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_pink)));
+            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_pink))); // Rojo/Rosa Salida
             btnFicharMain.setTextColor(ContextCompat.getColor(this, R.color.white));
         } else {
             btnFicharMain.setText("FICHAR\nENTRADA");
-            // Color VERDE para entrar (Estilo Pop Success)
-            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_green)));
+            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_green))); // Verde Entrada
             btnFicharMain.setTextColor(ContextCompat.getColor(this, R.color.black));
         }
     }
 
-    private void btnFicharDinamicoEnabled(boolean enabled) {
-        if(btnFicharMain != null) btnFicharMain.setEnabled(enabled);
-    }
-
-    // --- LÓGICA RESUMEN HORAS (Actualiza tarjeta y Popup) ---
-
-    private void mostrarResumenMensual(boolean mostrarPopup) {
-        String token = "Bearer " + sessionManager.getAuthToken();
-        Call<ResumenResponse> call = RetrofitClient.getInstance().getMyApi().getResumen(token, null, null);
-
-        call.enqueue(new Callback<ResumenResponse>() {
-            @Override
-            public void onResponse(Call<ResumenResponse> call, Response<ResumenResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    ResumenResponse r = response.body();
-
-                    // Actualizar Tarjeta Principal (Dashboard)
-                    String signo = r.getSaldo() >= 0 ? "+" : "";
-                    tvSaldoHoras.setText(signo + r.getSaldo() + " h");
-
-                    // Cambiar color del texto del saldo según sea positivo o negativo
-                    int colorSaldo = r.getSaldo() >= 0 ? R.color.pop_green : R.color.pop_red;
-                    //tvSaldoHoras.setTextColor(ContextCompat.getColor(MainActivity.this, colorSaldo)); // Opcional
-
-                    if (mostrarPopup) {
-                        mostrarPopupDetalle(r);
-                    }
-                }
-            }
-            @Override
-            public void onFailure(Call<ResumenResponse> call, Throwable t) { }
-        });
-    }
-
-    private void mostrarPopupDetalle(ResumenResponse r) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-        builder.setTitle("RESUMEN: " + r.getMes().toUpperCase());
-
-        String colorHex = r.getSaldo() >= 0 ? "#2ed573" : "#ff4757";
-        String htmlMessage = "<b>Teóricas:</b> " + r.getTeoricas() + "h<br>" +
-                "<b>Trabajadas:</b> " + r.getTrabajadas() + "h<br><br>" +
-                "<b>SALDO:</b> <font color='" + colorHex + "'>" + r.getSaldo() + "h</font>";
-
-        builder.setMessage(Html.fromHtml(htmlMessage, Html.FROM_HTML_MODE_LEGACY));
-        builder.setPositiveButton("OK", null);
-        builder.show();
-    }
-
-    // --- LÓGICA DE FICHAR (GPS) ---
-
+    // --- PERMISOS Y GPS ---
     private void checkPermissionsAndFichar() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             obtenerUbicacionYFichar();
@@ -233,9 +192,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void obtenerUbicacionYFichar() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
 
         fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener(this, new OnSuccessListener<Location>() {
@@ -244,7 +201,7 @@ public class MainActivity extends AppCompatActivity {
                         if (location != null) {
                             enviarFichaje(location.getLatitude(), location.getLongitude());
                         } else {
-                            mostrarToastPop("GPS no disponible", false);
+                            mostrarToastPop("Activa el GPS", false);
                             consultarEstadoFichaje();
                         }
                     }
@@ -258,7 +215,6 @@ public class MainActivity extends AppCompatActivity {
     private void enviarFichaje(double lat, double lon) {
         String token = "Bearer " + sessionManager.getAuthToken();
         FichajeRequest request = new FichajeRequest(lat, lon);
-
         Call<FichajeResponse> call = RetrofitClient.getInstance().getMyApi().fichar(token, request);
 
         call.enqueue(new Callback<FichajeResponse>() {
@@ -268,52 +224,24 @@ public class MainActivity extends AppCompatActivity {
                     String tipo = response.body().getTipo();
                     mostrarToastPop(tipo + " REGISTRADA", true);
                     actualizarBotonFichaje(tipo.equalsIgnoreCase("ENTRADA"));
+                    obtenerCalculoHorasExtra(); // Recalcular saldo al fichar
                 } else {
-                    mostrarToastPop("Fichaje rechazado (Distancia)", false);
+                    mostrarToastPop("Fichaje rechazado (Lejos)", false);
                     consultarEstadoFichaje();
                 }
             }
             @Override
             public void onFailure(Call<FichajeResponse> call, Throwable t) {
-                mostrarToastPop("Error de conexión", false);
+                mostrarToastPop("Error de red", false);
                 consultarEstadoFichaje();
             }
         });
     }
 
     // --- UTILIDADES ---
-
-    private void mostrarToastPop(String mensaje, boolean esExito) {
-        LayoutInflater inflater = getLayoutInflater();
-        View layout = inflater.inflate(R.layout.layout_toast_pop, null);
-
-        TextView text = layout.findViewById(R.id.toastText);
-        text.setText(mensaje);
-
-        ImageView icon = layout.findViewById(R.id.toastIcon);
-        if (esExito) {
-            icon.setImageResource(R.drawable.ic_pop_success);
-        } else {
-            icon.setImageResource(R.drawable.ic_pop_error);
-        }
-
-        Toast toast = new Toast(getApplicationContext());
-        toast.setDuration(Toast.LENGTH_SHORT);
-        toast.setView(layout);
-        toast.show();
-    }
-
-    private void irALogin() {
-        sessionManager.clearSession();
-        Intent intent = new Intent(MainActivity.this, LoginActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        startActivity(intent);
-        finish();
-    }
-
     private void mostrarDialogoCambioPassword() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("CAMBIAR CLAVE");
+        builder.setTitle("CAMBIAR CONTRASEÑA");
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -330,29 +258,42 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(etNueva);
 
         builder.setView(layout);
-
-        builder.setPositiveButton("GUARDAR", (dialog, which) -> {
-            cambiarPasswordApi(etActual.getText().toString().trim(), etNueva.getText().toString().trim());
-        });
+        builder.setPositiveButton("GUARDAR", (dialog, which) -> cambiarPasswordApi(etActual.getText().toString(), etNueva.getText().toString()));
         builder.setNegativeButton("CANCELAR", null);
         builder.show();
     }
 
     private void cambiarPasswordApi(String actual, String nueva) {
         if(actual.isEmpty() || nueva.isEmpty()) return;
-
         String token = "Bearer " + sessionManager.getAuthToken();
         ChangePasswordRequest request = new ChangePasswordRequest(actual, nueva);
         RetrofitClient.getInstance().getMyApi().changePassword(token, request).enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
-                mostrarToastPop(response.isSuccessful() ? "Clave actualizada" : "Error al cambiar clave", response.isSuccessful());
+                mostrarToastPop(response.isSuccessful() ? "Clave cambiada" : "Error al cambiar", response.isSuccessful());
             }
             @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                mostrarToastPop("Error de red", false);
-            }
+            public void onFailure(Call<Void> call, Throwable t) {}
         });
+    }
+
+    private void mostrarToastPop(String mensaje, boolean esExito) {
+        LayoutInflater inflater = getLayoutInflater();
+        View layout = inflater.inflate(R.layout.layout_toast_pop, null);
+        TextView text = layout.findViewById(R.id.toastText);
+        text.setText(mensaje);
+        ImageView icon = layout.findViewById(R.id.toastIcon);
+        icon.setImageResource(esExito ? R.drawable.ic_pop_success : R.drawable.ic_pop_error);
+        Toast toast = new Toast(getApplicationContext());
+        toast.setDuration(Toast.LENGTH_SHORT);
+        toast.setView(layout);
+        toast.show();
+    }
+
+    private void irALogin() {
+        sessionManager.clearSession();
+        startActivity(new Intent(MainActivity.this, LoginActivity.class));
+        finish();
     }
 
     @Override
@@ -362,7 +303,6 @@ public class MainActivity extends AppCompatActivity {
             obtenerUbicacionYFichar();
         } else {
             btnFicharMain.setEnabled(true);
-            mostrarToastPop("Permiso GPS requerido", false);
         }
     }
 }

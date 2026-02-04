@@ -62,4 +62,11 @@ public interface ApiService {
             @Header("Authorization") String token,
             @Path("id") int idEmpleado
     );
+
+    // Guardar Token FCM (Firebase)
+    @POST("api/save-fcm-token")
+    Call<Void> saveFcmToken(
+            @Header("Authorization") String token,
+            @Body FcmTokenRequest request
+    );
 }

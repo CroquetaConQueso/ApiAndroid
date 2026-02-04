@@ -1,5 +1,7 @@
 plugins {
     id("com.android.application")
+    // 1. Añadimos el plugin de Google Services
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -12,6 +14,8 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -31,8 +35,20 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
+    // Retrofit (API REST)
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
+    // Google Maps / Location
     implementation("com.google.android.gms:play-services-location:21.0.1")
+
+    // --- FIREBASE ---
+    // Importamos el BoM (Bill of Materials) para gestionar versiones automáticamente
+    implementation(platform("com.google.firebase:firebase-bom:33.9.0")) // Usamos una versión reciente y estable
+
+    // Firebase Analytics (Recomendado por defecto)
+    implementation("com.google.firebase:firebase-analytics")
+
+    // Firebase Cloud Messaging (NECESARIO PARA NOTIFICACIONES)
+    implementation("com.google.firebase:firebase-messaging")
 }
