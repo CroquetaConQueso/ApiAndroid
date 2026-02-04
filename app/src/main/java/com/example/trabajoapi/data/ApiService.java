@@ -6,6 +6,8 @@ import retrofit2.http.Body;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.POST;
+import retrofit2.http.Path;
+import retrofit2.http.Query;
 
 public interface ApiService {
 
@@ -21,7 +23,6 @@ public interface ApiService {
     );
 
     // Historial Fichajes (Para saber si estoy dentro o fuera)
-    // CORREGIDO: Usamos "mis-fichajes" que es la ruta correcta en tu Python
     @GET("api/mis-fichajes")
     Call<List<FichajeResponse>> obtenerHistorial(@Header("Authorization") String token);
 
@@ -44,7 +45,21 @@ public interface ApiService {
     );
 
     // Ver Incidencias (Historial de solicitudes)
-    // NECESARIO: Sin esto, el IncidenciaHelper fallará
     @GET("api/incidencias")
     Call<List<IncidenciaResponse>> getMisIncidencias(@Header("Authorization") String token);
+
+    // NUEVO: Resumen Mensual de Horas
+    @GET("api/resumen")
+    Call<ResumenResponse> getResumen(
+            @Header("Authorization") String token,
+            @Query("mes") Integer mes,
+            @Query("anio") Integer anio
+    );
+
+    // NUEVO: Admin ver fichajes de otros
+    @GET("api/fichajes-empleado/{id}")
+    Call<List<FichajeResponse>> getFichajesEmpleado(
+            @Header("Authorization") String token,
+            @Path("id") int idEmpleado
+    );
 }
