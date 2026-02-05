@@ -1,19 +1,22 @@
 package com.example.trabajoapi.data;
 
 import com.google.gson.annotations.SerializedName;
+import java.io.Serializable;
 
-public class EmpresaConfigResponse {
-    // Usamos @SerializedName para asegurarnos de que coincida con el JSON del backend
-    @SerializedName("latitud")
+public class EmpresaConfigResponse implements Serializable {
+
+    // CAMBIO CLAVE: "value" es lo que se envía al servidor (Inglés).
+    // "alternate" permite leer lo que llega, venga como venga.
+
+    @SerializedName(value = "latitude", alternate = {"lat", "latitud"})
     private Double latitud;
 
-    @SerializedName("longitud")
+    @SerializedName(value = "longitude", alternate = {"lon", "lng", "longitud"})
     private Double longitud;
 
-    @SerializedName("radio")
+    @SerializedName(value = "radius", alternate = {"radio", "r"})
     private Integer radio;
 
-    // Constructor vacío
     public EmpresaConfigResponse() {
     }
 
@@ -23,7 +26,6 @@ public class EmpresaConfigResponse {
         this.radio = radio;
     }
 
-    // Getters y Setters
     public Double getLatitud() {
         return latitud;
     }

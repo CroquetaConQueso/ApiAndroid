@@ -14,9 +14,17 @@ import java.util.List;
 public class EmpleadoAdapter extends RecyclerView.Adapter<EmpleadoAdapter.ViewHolder> {
 
     private List<TrabajadorResponse> lista;
+    private OnItemClickListener listener;
 
-    public EmpleadoAdapter(List<TrabajadorResponse> lista) {
+    // Interfaz para gestionar el click
+    public interface OnItemClickListener {
+        void onItemClick(TrabajadorResponse empleado);
+    }
+
+    // Constructor que pide la lista Y el listener
+    public EmpleadoAdapter(List<TrabajadorResponse> lista, OnItemClickListener listener) {
         this.lista = lista;
+        this.listener = listener;
     }
 
     @NonNull
@@ -31,18 +39,23 @@ public class EmpleadoAdapter extends RecyclerView.Adapter<EmpleadoAdapter.ViewHo
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         TrabajadorResponse item = lista.get(position);
 
-        holder.tvNombre.setText(item.getNombre() + " " + item.getApellidos());
+        holder.tvNombre.setText(item.getNombreCompleto());
         holder.tvNif.setText(item.getNif());
 
-        String rol = item.getRol() != null ? item.getRol() : "Trabajador";
+        String rol = item.getRol();
         holder.tvRol.setText(rol.toUpperCase());
 
-        // Cambiar color según rol
-        if (rol.equalsIgnoreCase("Administrador") || rol.contains("Admin")) {
-            holder.tvRol.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#000000"))); // Negro para jefes
+        // Colores según rol (Negro para Admin, Cyan para resto)
+        if (rol.equalsIgnoreCase("Administrador") || rol.contains("Admin") || rol.contains("admin")) {
+            holder.tvRol.setBackgroundTintList(ColorStateList.valueOf(Color.BLACK));
         } else {
-            holder.tvRol.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#00BCD4"))); // Cyan para currelas
+            holder.tvRol.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#00BCD4")));
         }
+
+        // Click en el elemento
+        holder.itemView.setOnClickListener(v -> {
+            if (listener != null) listener.onItemClick(item);
+        });
     }
 
     @Override

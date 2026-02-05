@@ -34,15 +34,15 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
 
         recyclerView = findViewById(R.id.recyclerEmpleados);
         progressBar = findViewById(R.id.progressEmpleados);
-        ImageView btnVolver = findViewById(R.id.btnVolverLista);
 
-        // Configurar RecyclerView
+        // Botón Volver
+        ImageView btnVolver = findViewById(R.id.btnVolverLista);
+        if (btnVolver != null) {
+            btnVolver.setOnClickListener(v -> finish());
+        }
+
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        // Volver
-        btnVolver.setOnClickListener(v -> finish());
-
-        // Cargar datos
         cargarEmpleados();
     }
 
@@ -53,19 +53,30 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<List<TrabajadorResponse>> call, Response<List<TrabajadorResponse>> response) {
                 progressBar.setVisibility(View.GONE);
+
                 if (response.isSuccessful() && response.body() != null) {
                     List<TrabajadorResponse> empleados = response.body();
-                    EmpleadoAdapter adapter = new EmpleadoAdapter(empleados);
-                    recyclerView.setAdapter(adapter);
+
+                    if (empleados.isEmpty()) {
+                        Toast.makeText(AdminEmpleadosActivity.this, "La lista está vacía", Toast.LENGTH_SHORT).show();
+                    } else {
+                        // Usamos el adaptador con listener
+                        EmpleadoAdapter adapter = new EmpleadoAdapter(empleados, empleado -> {
+                            // Aquí programaremos ver el detalle/fichajes
+                            Toast.makeText(AdminEmpleadosActivity.this, "Seleccionado: " + empleado.getNombre(), Toast.LENGTH_SHORT).show();
+                        });
+                        recyclerView.setAdapter(adapter);
+                    }
                 } else {
-                    Toast.makeText(AdminEmpleadosActivity.this, "Error al cargar plantilla", Toast.LENGTH_SHORT).show();
+                    // Si falla aquí, el servidor devuelve error (400, 500...)
+                    Toast.makeText(AdminEmpleadosActivity.this, "Error del servidor: " + response.code(), Toast.LENGTH_LONG).show();
                 }
             }
 
             @Override
             public void onFailure(Call<List<TrabajadorResponse>> call, Throwable t) {
                 progressBar.setVisibility(View.GONE);
-                Toast.makeText(AdminEmpleadosActivity.this, "Error de red", Toast.LENGTH_SHORT).show();
+                Toast.makeText(AdminEmpleadosActivity.this, "Error de red: " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
     }

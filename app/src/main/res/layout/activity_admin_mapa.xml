@@ -5,12 +5,10 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <fragment
+    <org.osmdroid.views.MapView
         android:id="@+id/map"
-        android:name="com.google.android.gms.maps.SupportMapFragment"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        tools:context=".AdminMapaActivity" />
+        android:layout_height="match_parent" />
 
     <ImageView
         android:id="@+id/btnVolverMapa"
@@ -23,7 +21,9 @@
         android:padding="12dp"
         app:tint="@color/black"
         android:elevation="10dp"
-        android:contentDescription="Volver atrás"
+        android:clickable="true"
+        android:focusable="true"
+        android:contentDescription="Volver"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
 
@@ -45,7 +45,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="CONFIGURAR ZONA DE FICHAJE"
+                android:text="CONFIGURAR ZONA (OSM)"
                 android:fontFamily="sans-serif-black"
                 android:textSize="16sp"
                 android:textColor="@color/black"/>
@@ -53,7 +53,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Mantén pulsado en el mapa para mover la sede."
+                android:text="Toca en el mapa para mover la sede."
                 android:textSize="12sp"
                 android:textColor="#757575"
                 android:layout_marginBottom="15dp"/>
@@ -89,16 +89,18 @@
                 android:valueTo="500"
                 android:value="50"
                 android:stepSize="10"
-                android:contentDescription="Ajustar radio de fichaje en metros"/> <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/btnGuardarMapa"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:text="GUARDAR CAMBIOS"
-            android:textStyle="bold"
-            android:textColor="@color/white"
-            android:background="@drawable/bg_btn_pop_action"
-            android:backgroundTint="@color/pop_green"
-            android:layout_marginTop="10dp"/>
+                android:contentDescription="Ajustar radio"/>
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnGuardarMapa"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:text="GUARDAR CAMBIOS"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:background="@drawable/bg_btn_pop_action"
+                android:backgroundTint="@color/pop_green"
+                android:layout_marginTop="10dp"/>
 
         </LinearLayout>
     </androidx.cardview.widget.CardView>
