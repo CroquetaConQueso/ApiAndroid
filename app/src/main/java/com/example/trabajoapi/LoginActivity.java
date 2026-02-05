@@ -78,53 +78,43 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        // Bloquear UI para evitar doble click (opcional pero recomendado)
-        // btnLogin.setEnabled(false);
-
         LoginRequest loginRequest = new LoginRequest(nif, password);
-        Call<LoginResponse> call = RetrofitClient.getInstance().getMyApi().login(loginRequest);
 
-        call.enqueue(new Callback<LoginResponse>() {
-            @Override
-            public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
-                // btnLogin.setEnabled(true);
+        RetrofitClient.getInstance().getMyApi().login(loginRequest)
+                .enqueue(new Callback<LoginResponse>() {
+                    @Override
+                    public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            LoginResponse loginData = response.body();
 
-                if (response.isSuccessful() && response.body() != null) {
-                    LoginResponse loginData = response.body();
+                            sessionManager.saveAuthToken(loginData.getAccessToken());
+                            sessionManager.saveRol(loginData.getRol());
 
-                    // 1. Guardar Sesión
-                    sessionManager.saveAuthToken(loginData.getAccessToken());
-                    sessionManager.saveRol(loginData.getRol());
-                    // sessionManager.saveId(loginData.getIdTrabajador()); // Si tienes este método
+                            Toast.makeText(LoginActivity.this,
+                                    "¡Bienvenido " + loginData.getNombre() + "!",
+                                    Toast.LENGTH_SHORT).show();
 
-                    Toast.makeText(LoginActivity.this, "¡Bienvenido " + loginData.getNombre() + "!", Toast.LENGTH_SHORT).show();
+                            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
 
-                    // 2. Preparar el salto a MainActivity
-                    Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                            if (loginData.getRecordatorio() != null && loginData.getRecordatorio().isAvisar()) {
+                                intent.putExtra("AVISO_TITULO", loginData.getRecordatorio().getTitulo());
+                                intent.putExtra("AVISO_MENSAJE", loginData.getRecordatorio().getMensaje());
+                            }
 
-                    // 3. --- LÓGICA DE AVISO (NUEVO) ---
-                    // Si el backend nos dice que avisemos, pasamos los datos a la MainActivity
-                    if (loginData.getRecordatorio() != null && loginData.getRecordatorio().isAvisar()) {
-                        intent.putExtra("AVISO_TITULO", loginData.getRecordatorio().getTitulo());
-                        intent.putExtra("AVISO_MENSAJE", loginData.getRecordatorio().getMensaje());
+                            startActivity(intent);
+                            finish();
+                        } else {
+                            Toast.makeText(LoginActivity.this, "Credenciales incorrectas", Toast.LENGTH_SHORT).show();
+                        }
                     }
 
-                    // 4. Iniciar actividad y cerrar login
-                    startActivity(intent);
-                    finish();
-
-                } else {
-                    Toast.makeText(LoginActivity.this, "Credenciales incorrectas", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<LoginResponse> call, Throwable t) {
-                // btnLogin.setEnabled(true);
-                Toast.makeText(LoginActivity.this, "Error de red: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
+                    @Override
+                    public void onFailure(Call<LoginResponse> call, Throwable t) {
+                        Toast.makeText(LoginActivity.this, "Error de red: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
+
 
     private void mostrarDialogoRecuperacion() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -185,4 +175,31 @@ public class LoginActivity extends AppCompatActivity {
         startActivity(intent);
         finish();
     }
+
+    private void mostrarNotificacionLocal(String titulo, String cuerpo) {
+        String channelId = "canal_fichajes";
+
+        android.app.NotificationManager notificationManager =
+                (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                    channelId,
+                    "Avisos de Fichaje",
+                    android.app.NotificationManager.IMPORTANCE_HIGH
+            );
+            notificationManager.createNotificationChannel(channel);
+        }
+
+        androidx.core.app.NotificationCompat.Builder builder =
+                new androidx.core.app.NotificationCompat.Builder(this, channelId)
+                        .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                        .setContentTitle(titulo)
+                        .setContentText(cuerpo)
+                        .setAutoCancel(true)
+                        .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH);
+
+        notificationManager.notify(1001, builder.build());
+    }
+
 }
