@@ -1,8 +1,10 @@
 package com.example.trabajoapi;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -28,22 +30,28 @@ public class AdminActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
-        // --- CORRECCIÓN DEL CRASH ---
-        // Antes: MaterialButton (Error)
-        // Ahora: AppCompatButton (Correcto, coincide con el XML)
+        // 1. BOTÓN VOLVER (Flecha atrás)
+        ImageView btnVolver = findViewById(R.id.btnVolverAdmin);
+        if (btnVolver != null) {
+            btnVolver.setOnClickListener(v -> finish());
+        }
+
+        // 2. BUSCAR LOS BOTONES DEL MENÚ
         AppCompatButton btnEmpleados = findViewById(R.id.btnAdminEmpleados);
         AppCompatButton btnMapa = findViewById(R.id.btnAdminMapa);
 
-        // 1. Ver Empleados
+        // 3. ACCIÓN: IR A LISTA DE EMPLEADOS
         btnEmpleados.setOnClickListener(v -> {
-            Toast.makeText(this, "Funcionalidad: Lista de Empleados", Toast.LENGTH_SHORT).show();
-            // Futuro: startActivity(new Intent(this, ListaEmpleadosActivity.class));
+            Intent intent = new Intent(AdminActivity.this, AdminEmpleadosActivity.class);
+            startActivity(intent);
         });
 
-        // 2. Configuración GPS (Radio)
-        btnMapa.setOnClickListener(v -> mostrarDialogoRadio());
+        // 4. ACCIÓN: IR A CONFIGURACIÓN MAPA
+        btnMapa.setOnClickListener(v -> {
+            Intent intent = new Intent(AdminActivity.this, AdminMapaActivity.class);
+            startActivity(intent);
+        });
     }
-
     private void mostrarDialogoRadio() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Modificar Radio GPS (Metros)");

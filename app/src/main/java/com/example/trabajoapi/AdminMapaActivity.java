@@ -74,13 +74,17 @@ public class AdminMapaActivity extends AppCompatActivity implements OnMapReadyCa
         mMap = googleMap;
         mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
 
-        // Listener para mover la empresa con CLICK LARGO
+        // 1. Mover con CLICK LARGO (Ya lo tenías)
         mMap.setOnMapLongClickListener(latLng -> {
             ubicacionActual = latLng;
             dibujarEmpresa();
         });
 
-        // Cargar datos del servidor
+        mMap.setOnMapClickListener(latLng -> {
+            ubicacionActual = latLng;
+            dibujarEmpresa();
+        });
+
         cargarConfiguracionActual();
     }
 

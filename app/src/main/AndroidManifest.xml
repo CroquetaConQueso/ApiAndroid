@@ -35,6 +35,9 @@
             android:name=".AdminActivity"
             android:exported="false" />
 
+        <activity android:name=".AdminMapaActivity" android:exported="false" />
+        <activity android:name=".AdminEmpleadosActivity" android:exported="false" />
+
         <service
             android:name=".data.MessagingService"
             android:exported="false">
