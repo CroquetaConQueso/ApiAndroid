@@ -69,4 +69,18 @@ public interface ApiService {
             @Header("Authorization") String token,
             @Body FcmTokenRequest request
     );
+
+    @GET("api/empleados")
+    Call<List<TrabajadorResponse>> getEmpleados(@Header("Authorization") String token);
+
+
+    @GET("api/empresa/config")
+    Call<EmpresaConfigResponse> getEmpresaConfig(@Header("Authorization") String token);
+
+
+    @POST("api/empresa/config")
+    Call<Void> updateEmpresaConfig(
+            @Header("Authorization") String token,
+            @Body EmpresaConfigResponse config
+    );
 }

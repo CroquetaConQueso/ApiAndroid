@@ -85,11 +85,11 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    // Mantenemos tu método getAccessToken()
                     sessionManager.saveAuthToken(response.body().getAccessToken());
+                    sessionManager.saveRol(response.body().getRol());
                     Toast.makeText(LoginActivity.this, "¡Bienvenido!", Toast.LENGTH_SHORT).show();
                     irAMain();
-                } else {
+                }else {
                     Toast.makeText(LoginActivity.this, "Credenciales incorrectas", Toast.LENGTH_SHORT).show();
                 }
             }

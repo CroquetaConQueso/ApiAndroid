@@ -12,4 +12,8 @@ public class LoginResponse {
     public String getNif() {
         return nif;
     }
+
+    public String getRol() {
+        return rol;
+    }
 }

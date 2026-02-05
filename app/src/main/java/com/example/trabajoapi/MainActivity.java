@@ -36,7 +36,6 @@ import com.google.android.gms.location.Priority;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.button.MaterialButton;
 
-import org.json.JSONObject;
 import java.util.List;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -76,6 +75,10 @@ public class MainActivity extends AppCompatActivity {
         AppCompatButton btnHistorial = findViewById(R.id.btnHistorial);
         AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
 
+        // --- NUEVO: Botón de Panel de Admin ---
+        // Asegúrate de añadir este ID en tu activity_main.xml
+        AppCompatButton btnAdminPanel = findViewById(R.id.btnAdminPanel);
+
         // 1. FICHAR
         btnFicharMain.setOnClickListener(v -> {
             btnFicharMain.setEnabled(false);
@@ -98,6 +101,21 @@ public class MainActivity extends AppCompatActivity {
                 sessionManager.clearSession();
                 irALogin();
             });
+        }
+
+        // 6. PANEL DE ADMINISTRADOR (Lógica B7)
+        if (btnAdminPanel != null) {
+            if (sessionManager.isAdmin()) {
+                // Si es admin, lo mostramos y configuramos el click
+                btnAdminPanel.setVisibility(View.VISIBLE);
+                btnAdminPanel.setOnClickListener(v -> {
+                    Intent intent = new Intent(MainActivity.this, AdminActivity.class);
+                    startActivity(intent);
+                });
+            } else {
+                // Si no es admin, lo ocultamos por seguridad
+                btnAdminPanel.setVisibility(View.GONE);
+            }
         }
 
         enviarTokenFCM();
