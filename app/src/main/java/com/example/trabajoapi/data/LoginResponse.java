@@ -19,31 +19,28 @@ public class LoginResponse {
     @SerializedName("id_empresa")
     private int idEmpresa;
 
-    // Campos nuevos que YA envía tu backend (Flasky)
-    @SerializedName("alerta_fichaje")
-    private boolean alertaFichaje;
-
-    @SerializedName("alerta_titulo")
-    private String alertaTitulo;
-
-    @SerializedName("alerta_mensaje")
-    private String alertaMensaje;
-
-    @SerializedName("trabaja_hoy")
-    private boolean trabajaHoy;
-
-    @SerializedName("hora_entrada_hoy")
-    private String horaEntradaHoy;
+    @SerializedName("recordatorio")
+    private Recordatorio recordatorio;
 
     public String getAccessToken() { return accessToken; }
     public int getIdTrabajador() { return idTrabajador; }
     public String getNombre() { return nombre; }
     public String getRol() { return rol; }
     public int getIdEmpresa() { return idEmpresa; }
+    public Recordatorio getRecordatorio() { return recordatorio; }
 
-    public boolean isAlertaFichaje() { return alertaFichaje; }
-    public String getAlertaTitulo() { return alertaTitulo; }
-    public String getAlertaMensaje() { return alertaMensaje; }
-    public boolean isTrabajaHoy() { return trabajaHoy; }
-    public String getHoraEntradaHoy() { return horaEntradaHoy; }
+    public static class Recordatorio {
+        @SerializedName("avisar")
+        private boolean avisar;
+
+        @SerializedName("titulo")
+        private String titulo;
+
+        @SerializedName("mensaje")
+        private String mensaje;
+
+        public boolean isAvisar() { return avisar; }
+        public String getTitulo() { return titulo; }
+        public String getMensaje() { return mensaje; }
+    }
 }
