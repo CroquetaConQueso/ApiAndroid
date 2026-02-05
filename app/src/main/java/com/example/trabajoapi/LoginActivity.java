@@ -84,28 +84,31 @@ public class LoginActivity extends AppCompatActivity {
                 .enqueue(new Callback<LoginResponse>() {
                     @Override
                     public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
-                        if (response.isSuccessful() && response.body() != null) {
-                            LoginResponse loginData = response.body();
-
-                            sessionManager.saveAuthToken(loginData.getAccessToken());
-                            sessionManager.saveRol(loginData.getRol());
-
-                            Toast.makeText(LoginActivity.this,
-                                    "¡Bienvenido " + loginData.getNombre() + "!",
-                                    Toast.LENGTH_SHORT).show();
-
-                            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-
-                            if (loginData.getRecordatorio() != null && loginData.getRecordatorio().isAvisar()) {
-                                intent.putExtra("AVISO_TITULO", loginData.getRecordatorio().getTitulo());
-                                intent.putExtra("AVISO_MENSAJE", loginData.getRecordatorio().getMensaje());
-                            }
-
-                            startActivity(intent);
-                            finish();
-                        } else {
+                        if (!response.isSuccessful() || response.body() == null) {
                             Toast.makeText(LoginActivity.this, "Credenciales incorrectas", Toast.LENGTH_SHORT).show();
+                            return;
                         }
+
+                        LoginResponse loginData = response.body();
+
+                        sessionManager.saveAuthToken(loginData.getAccessToken());
+                        sessionManager.saveRol(loginData.getRol());
+
+                        Toast.makeText(
+                                LoginActivity.this,
+                                "¡Bienvenido " + loginData.getNombre() + "!",
+                                Toast.LENGTH_SHORT
+                        ).show();
+
+                        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+
+                        if (loginData.isAlertaFichaje()) {
+                            intent.putExtra("AVISO_TITULO", loginData.getAlertaTitulo());
+                            intent.putExtra("AVISO_MENSAJE", loginData.getAlertaMensaje());
+                        }
+
+                        startActivity(intent);
+                        finish();
                     }
 
                     @Override
@@ -114,6 +117,7 @@ public class LoginActivity extends AppCompatActivity {
                     }
                 });
     }
+
 
 
     private void mostrarDialogoRecuperacion() {

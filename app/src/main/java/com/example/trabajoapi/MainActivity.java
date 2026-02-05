@@ -67,7 +67,6 @@ public class MainActivity extends AppCompatActivity {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         incidenciaHelper = new IncidenciaHelper(this, RetrofitClient.getInstance().getMyApi(), sessionManager);
 
-        // Binding
         btnFicharMain = findViewById(R.id.btnFicharMain);
         tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
         tvEstadoHoras = findViewById(R.id.tvEstadoHoras);
@@ -79,28 +78,28 @@ public class MainActivity extends AppCompatActivity {
         AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
         AppCompatButton btnAdminPanel = findViewById(R.id.btnAdminPanel);
 
-        // 1. FICHAR
         btnFicharMain.setOnClickListener(v -> {
             btnFicharMain.setEnabled(false);
             btnFicharMain.setText("...");
             checkPermissionsAndFichar();
         });
 
-        // 2. INCIDENCIAS (Helper)
-        if (btnIncidencia != null) btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
+        if (btnIncidencia != null) {
+            btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
+        }
 
-        // 3. HISTORIAL SOLICITUDES (Helper)
-        if (btnHistorial != null) btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
+        if (btnHistorial != null) {
+            btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
+        }
 
-        // 4. MIS FICHAJES
         if (btnMisFichajes != null) {
             btnMisFichajes.setOnClickListener(v -> mostrarHistorialFichajes());
         }
 
-        // 5. CAMBIAR CLAVE
-        if (btnCambiarClave != null) btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
+        if (btnCambiarClave != null) {
+            btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
+        }
 
-        // 6. LOGOUT
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
                 sessionManager.clearSession();
@@ -108,7 +107,6 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        // 7. PANEL DE ADMINISTRADOR
         if (btnAdminPanel != null) {
             if (sessionManager.isAdmin()) {
                 btnAdminPanel.setVisibility(View.VISIBLE);
@@ -121,17 +119,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 8. --- LÓGICA NUEVA: AVISO DESDE LOGIN ---
-        // Si el Login detectó falta de fichaje, atrapamos los datos aquí y mostramos el aviso local.
-        if (getIntent() != null && getIntent().hasExtra("AVISO_TITULO")) {
-            String titulo = getIntent().getStringExtra("AVISO_TITULO");
-            String mensaje = getIntent().getStringExtra("AVISO_MENSAJE");
-            mostrarNotificacionLocal(titulo, mensaje);
-        }
+        procesarAvisoLoginSiExiste();
 
         enviarTokenFCM();
         pedirPermisosNotificaciones();
     }
+
 
     @Override
     protected void onResume() {
@@ -488,4 +481,25 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
+    private void procesarAvisoLoginSiExiste() {
+        Intent i = getIntent();
+        if (i == null) return;
+
+        String titulo = i.getStringExtra("AVISO_TITULO");
+        String mensaje = i.getStringExtra("AVISO_MENSAJE");
+
+        if (titulo != null && mensaje != null) {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(titulo)
+                    .setMessage(mensaje)
+                    .setPositiveButton("OK", null)
+                    .show();
+
+            i.removeExtra("AVISO_TITULO");
+            i.removeExtra("AVISO_MENSAJE");
+            setIntent(i);
+        }
+    }
+
 }

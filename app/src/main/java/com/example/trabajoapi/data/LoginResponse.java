@@ -8,7 +8,7 @@ public class LoginResponse {
     private String accessToken;
 
     @SerializedName("id_trabajador")
-    private Integer idTrabajador;
+    private int idTrabajador;
 
     @SerializedName("nombre")
     private String nombre;
@@ -17,57 +17,33 @@ public class LoginResponse {
     private String rol;
 
     @SerializedName("id_empresa")
-    private Integer idEmpresa;
+    private int idEmpresa;
 
-    // Opcional (si el backend lo envía)
-    @SerializedName("recordatorio")
-    private Recordatorio recordatorio;
+    // Campos nuevos que YA envía tu backend (Flasky)
+    @SerializedName("alerta_fichaje")
+    private boolean alertaFichaje;
 
-    public String getAccessToken() {
-        return accessToken;
-    }
+    @SerializedName("alerta_titulo")
+    private String alertaTitulo;
 
-    public Integer getIdTrabajador() {
-        return idTrabajador;
-    }
+    @SerializedName("alerta_mensaje")
+    private String alertaMensaje;
 
-    public String getNombre() {
-        return nombre;
-    }
+    @SerializedName("trabaja_hoy")
+    private boolean trabajaHoy;
 
-    public String getRol() {
-        return rol;
-    }
+    @SerializedName("hora_entrada_hoy")
+    private String horaEntradaHoy;
 
-    public Integer getIdEmpresa() {
-        return idEmpresa;
-    }
+    public String getAccessToken() { return accessToken; }
+    public int getIdTrabajador() { return idTrabajador; }
+    public String getNombre() { return nombre; }
+    public String getRol() { return rol; }
+    public int getIdEmpresa() { return idEmpresa; }
 
-    public Recordatorio getRecordatorio() {
-        return recordatorio;
-    }
-
-    public static class Recordatorio {
-
-        @SerializedName("avisar")
-        private Boolean avisar;
-
-        @SerializedName("titulo")
-        private String titulo;
-
-        @SerializedName("mensaje")
-        private String mensaje;
-
-        public boolean isAvisar() {
-            return avisar != null && avisar;
-        }
-
-        public String getTitulo() {
-            return titulo;
-        }
-
-        public String getMensaje() {
-            return mensaje;
-        }
-    }
+    public boolean isAlertaFichaje() { return alertaFichaje; }
+    public String getAlertaTitulo() { return alertaTitulo; }
+    public String getAlertaMensaje() { return alertaMensaje; }
+    public boolean isTrabajaHoy() { return trabajaHoy; }
+    public String getHoraEntradaHoy() { return horaEntradaHoy; }
 }
