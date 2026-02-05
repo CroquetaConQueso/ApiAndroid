@@ -62,6 +62,13 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         sessionManager = new SessionManager(this);
+
+        // --- 🔍 DEBUG ROL: ESTO TE DIRÁ POR QUÉ NO SALE EL BOTÓN ---
+        // Al arrancar, fíjate en el mensaje que sale abajo.
+        String rolActual = sessionManager.getRol();
+        Toast.makeText(this, "Debug Rol: " + rolActual, Toast.LENGTH_LONG).show();
+        // -----------------------------------------------------------
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         incidenciaHelper = new IncidenciaHelper(this, RetrofitClient.getInstance().getMyApi(), sessionManager);
 
@@ -73,10 +80,8 @@ public class MainActivity extends AppCompatActivity {
         ImageView btnLogout = findViewById(R.id.btnLogoutIcon);
         AppCompatButton btnIncidencia = findViewById(R.id.btnIncidencia);
         AppCompatButton btnHistorial = findViewById(R.id.btnHistorial);
+        AppCompatButton btnMisFichajes = findViewById(R.id.btnMisFichajes); // <--- NUEVO
         AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
-
-        // --- NUEVO: Botón de Panel de Admin ---
-        // Asegúrate de añadir este ID en tu activity_main.xml
         AppCompatButton btnAdminPanel = findViewById(R.id.btnAdminPanel);
 
         // 1. FICHAR
@@ -89,13 +94,18 @@ public class MainActivity extends AppCompatActivity {
         // 2. INCIDENCIAS (Helper)
         if (btnIncidencia != null) btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
 
-        // 3. HISTORIAL (Helper)
+        // 3. HISTORIAL SOLICITUDES (Helper)
         if (btnHistorial != null) btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
 
-        // 4. CAMBIAR CLAVE
+        // 4. MIS FICHAJES (NUEVO - Lógica B7)
+        if (btnMisFichajes != null) {
+            btnMisFichajes.setOnClickListener(v -> mostrarHistorialFichajes());
+        }
+
+        // 5. CAMBIAR CLAVE
         if (btnCambiarClave != null) btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
 
-        // 5. LOGOUT
+        // 6. LOGOUT
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
                 sessionManager.clearSession();
@@ -103,17 +113,15 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        // 6. PANEL DE ADMINISTRADOR (Lógica B7)
+        // 7. PANEL DE ADMINISTRADOR
         if (btnAdminPanel != null) {
             if (sessionManager.isAdmin()) {
-                // Si es admin, lo mostramos y configuramos el click
                 btnAdminPanel.setVisibility(View.VISIBLE);
                 btnAdminPanel.setOnClickListener(v -> {
                     Intent intent = new Intent(MainActivity.this, AdminActivity.class);
                     startActivity(intent);
                 });
             } else {
-                // Si no es admin, lo ocultamos por seguridad
                 btnAdminPanel.setVisibility(View.GONE);
             }
         }
@@ -128,15 +136,63 @@ public class MainActivity extends AppCompatActivity {
         cargarDashboard();
     }
 
+    // --- LÓGICA NUEVA: MOSTRAR LISTA DE FICHAJES ---
+    private void mostrarHistorialFichajes() {
+        String token = "Bearer " + sessionManager.getAuthToken();
+        Call<List<FichajeResponse>> call = RetrofitClient.getInstance().getMyApi().obtenerHistorial(token);
+
+        call.enqueue(new Callback<List<FichajeResponse>>() {
+            @Override
+            public void onResponse(Call<List<FichajeResponse>> call, Response<List<FichajeResponse>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    List<FichajeResponse> lista = response.body();
+
+                    AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                    builder.setTitle("MIS ÚLTIMOS FICHAJES");
+
+                    if (lista.isEmpty()) {
+                        builder.setMessage("No tienes registros de fichaje aún.");
+                    } else {
+                        String[] items = new String[lista.size()];
+                        for (int i = 0; i < lista.size(); i++) {
+                            FichajeResponse f = lista.get(i);
+
+                            // PROTECCIÓN CONTRA NULOS (Arregla el error de getFechaHora)
+                            String rawFecha = f.getFechaHora();
+                            String fechaLimpia = "Sin fecha";
+
+                            if (rawFecha != null) {
+                                fechaLimpia = rawFecha.replace("T", " ");
+                                // Cortamos segundos (YYYY-MM-DD HH:mm)
+                                if(fechaLimpia.length() > 16) fechaLimpia = fechaLimpia.substring(0, 16);
+                            }
+
+                            items[i] = (f.getTipo() != null ? f.getTipo() : "REGISTRO") + "\n" + fechaLimpia;
+                        }
+                        builder.setItems(items, null); // Solo lectura
+                    }
+
+                    builder.setPositiveButton("CERRAR", null);
+                    builder.show();
+                } else {
+                    mostrarToastPop("Error al cargar historial", false);
+                }
+            }
+            @Override
+            public void onFailure(Call<List<FichajeResponse>> call, Throwable t) {
+                mostrarToastPop("Error de conexión", false);
+            }
+        });
+    }
+
     private void cargarDashboard() {
         consultarEstadoFichaje();
         obtenerCalculoHorasExtra();
     }
 
-    // --- LÓGICA DE HORAS EXTRA (Requisito PDF) ---
+    // --- LÓGICA DE HORAS EXTRA ---
     private void obtenerCalculoHorasExtra() {
         String token = "Bearer " + sessionManager.getAuthToken();
-        // El backend calcula: Horas Trabajadas - Horas Teóricas
         Call<ResumenResponse> call = RetrofitClient.getInstance().getMyApi().getResumen(token, null, null);
 
         call.enqueue(new Callback<ResumenResponse>() {
@@ -148,11 +204,11 @@ public class MainActivity extends AppCompatActivity {
 
                     if (saldo >= 0) {
                         tvHorasExtraValor.setText("+" + saldo + " h");
-                        tvHorasExtraValor.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.pop_green)); // Verde
+                        tvHorasExtraValor.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.pop_green));
                         tvEstadoHoras.setText("TIENES HORAS EXTRA ACUMULADAS");
                     } else {
                         tvHorasExtraValor.setText(saldo + " h");
-                        tvHorasExtraValor.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.pop_red)); // Rojo
+                        tvHorasExtraValor.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.pop_red));
                         tvEstadoHoras.setText("DEBES HORAS A LA EMPRESA");
                     }
                 }
@@ -194,11 +250,11 @@ public class MainActivity extends AppCompatActivity {
 
         if (estoyDentro) {
             btnFicharMain.setText("FICHAR\nSALIDA");
-            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_pink))); // Rojo/Rosa Salida
+            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_pink)));
             btnFicharMain.setTextColor(ContextCompat.getColor(this, R.color.white));
         } else {
             btnFicharMain.setText("FICHAR\nENTRADA");
-            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_green))); // Verde Entrada
+            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_green)));
             btnFicharMain.setTextColor(ContextCompat.getColor(this, R.color.black));
         }
     }
@@ -246,7 +302,7 @@ public class MainActivity extends AppCompatActivity {
                     String tipo = response.body().getTipo();
                     mostrarToastPop(tipo + " REGISTRADA", true);
                     actualizarBotonFichaje(tipo.equalsIgnoreCase("ENTRADA"));
-                    obtenerCalculoHorasExtra(); // Recalcular saldo al fichar
+                    obtenerCalculoHorasExtra();
                 } else {
                     mostrarToastPop("Fichaje rechazado (Lejos)", false);
                     consultarEstadoFichaje();
