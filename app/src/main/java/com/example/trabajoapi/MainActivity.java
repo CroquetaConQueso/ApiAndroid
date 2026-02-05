@@ -63,11 +63,6 @@ public class MainActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
-        // --- 🔍 DEBUG ROL: ESTO TE DIRÁ POR QUÉ NO SALE EL BOTÓN ---
-        // Al arrancar, fíjate en el mensaje que sale abajo.
-        String rolActual = sessionManager.getRol();
-        Toast.makeText(this, "Debug Rol: " + rolActual, Toast.LENGTH_LONG).show();
-        // -----------------------------------------------------------
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         incidenciaHelper = new IncidenciaHelper(this, RetrofitClient.getInstance().getMyApi(), sessionManager);
