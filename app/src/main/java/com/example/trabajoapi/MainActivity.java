@@ -44,6 +44,7 @@ import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final int PERMISSION_REQUEST_CODE = 112;
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
     private static final int PERMISSION_ID = 44;
@@ -98,6 +99,9 @@ public class MainActivity extends AppCompatActivity {
                 irALogin();
             });
         }
+
+        enviarTokenFCM();
+        pedirPermisosNotificaciones();
     }
 
     @Override
@@ -303,6 +307,48 @@ public class MainActivity extends AppCompatActivity {
             obtenerUbicacionYFichar();
         } else {
             btnFicharMain.setEnabled(true);
+        }
+    }
+
+    private void enviarTokenFCM() {
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+                .addOnCompleteListener(task -> {
+                    if (!task.isSuccessful()) {
+                        System.out.println("Fetching FCM registration token failed");
+                        return;
+                    }
+
+                    // 1. Obtener el token nuevo
+                    String tokenFCM = task.getResult();
+                    System.out.println("Token FCM: " + tokenFCM);
+
+                    // 2. Preparar el envío
+                    String authToken = "Bearer " + sessionManager.getAuthToken();
+                    com.example.trabajoapi.data.FcmTokenRequest request = new com.example.trabajoapi.data.FcmTokenRequest(tokenFCM);
+
+                    // 3. Enviar al Backend
+                    RetrofitClient.getInstance().getMyApi().saveFcmToken(authToken, request)
+                            .enqueue(new Callback<Void>() {
+                                @Override
+                                public void onResponse(Call<Void> call, Response<Void> response) {
+                                    if (response.isSuccessful()) {
+                                        System.out.println("Token FCM guardado en servidor correctamente.");
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Call<Void> call, Throwable t) {
+                                    System.out.println("Error enviando token FCM: " + t.getMessage());
+                                }
+                            });
+                });
+    }
+
+    private void pedirPermisosNotificaciones() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, PERMISSION_REQUEST_CODE);
+            }
         }
     }
 }
