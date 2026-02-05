@@ -26,6 +26,7 @@ import com.example.trabajoapi.data.ChangePasswordRequest;
 import com.example.trabajoapi.data.FichajeRequest;
 import com.example.trabajoapi.data.FichajeResponse;
 import com.example.trabajoapi.data.IncidenciaHelper;
+import com.example.trabajoapi.data.RecordatorioResponse; // Asegúrate de tener esta clase
 import com.example.trabajoapi.data.ResumenResponse;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
@@ -63,7 +64,6 @@ public class MainActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
-
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         incidenciaHelper = new IncidenciaHelper(this, RetrofitClient.getInstance().getMyApi(), sessionManager);
 
@@ -75,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
         ImageView btnLogout = findViewById(R.id.btnLogoutIcon);
         AppCompatButton btnIncidencia = findViewById(R.id.btnIncidencia);
         AppCompatButton btnHistorial = findViewById(R.id.btnHistorial);
-        AppCompatButton btnMisFichajes = findViewById(R.id.btnMisFichajes); // <--- NUEVO
+        AppCompatButton btnMisFichajes = findViewById(R.id.btnMisFichajes);
         AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
         AppCompatButton btnAdminPanel = findViewById(R.id.btnAdminPanel);
 
@@ -92,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
         // 3. HISTORIAL SOLICITUDES (Helper)
         if (btnHistorial != null) btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
 
-        // 4. MIS FICHAJES (NUEVO - Lógica B7)
+        // 4. MIS FICHAJES
         if (btnMisFichajes != null) {
             btnMisFichajes.setOnClickListener(v -> mostrarHistorialFichajes());
         }
@@ -121,6 +121,14 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // 8. --- LÓGICA NUEVA: AVISO DESDE LOGIN ---
+        // Si el Login detectó falta de fichaje, atrapamos los datos aquí y mostramos el aviso local.
+        if (getIntent() != null && getIntent().hasExtra("AVISO_TITULO")) {
+            String titulo = getIntent().getStringExtra("AVISO_TITULO");
+            String mensaje = getIntent().getStringExtra("AVISO_MENSAJE");
+            mostrarNotificacionLocal(titulo, mensaje);
+        }
+
         enviarTokenFCM();
         pedirPermisosNotificaciones();
     }
@@ -129,9 +137,71 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         cargarDashboard();
+
+        // --- NUEVO: Comprobar si hay que avisar localmente ---
+        comprobarRecordatorioFichaje();
     }
 
-    // --- LÓGICA NUEVA: MOSTRAR LISTA DE FICHAJES ---
+    private void comprobarRecordatorioFichaje() {
+        String token = sessionManager.getAuthToken();
+        if (token == null) return;
+
+        RetrofitClient.getInstance().getMyApi()
+                .getRecordatorioFichaje("Bearer " + token)
+                .enqueue(new Callback<RecordatorioResponse>() {
+                    @Override
+                    public void onResponse(Call<RecordatorioResponse> call, Response<RecordatorioResponse> response) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            RecordatorioResponse aviso = response.body();
+
+                            if (aviso.isAvisar()) {
+                                // Mostrar Notificación LOCAL
+                                mostrarNotificacionLocal(aviso.getTitulo(), aviso.getMensaje());
+                            }
+                        }
+                    }
+                    @Override
+                    public void onFailure(Call<RecordatorioResponse> call, Throwable t) {
+                        // Fallo silencioso
+                    }
+                });
+    }
+
+    private void mostrarNotificacionLocal(String titulo, String cuerpo) {
+        String channelId = "canal_fichajes_local_v1";
+        android.app.NotificationManager notificationManager =
+                (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                    channelId,
+                    "Avisos de Fichaje (Local)",
+                    android.app.NotificationManager.IMPORTANCE_HIGH
+            );
+            notificationManager.createNotificationChannel(channel);
+        }
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+        android.app.PendingIntent pendingIntent = android.app.PendingIntent.getActivity(
+                this, 0, intent,
+                android.app.PendingIntent.FLAG_ONE_SHOT | android.app.PendingIntent.FLAG_IMMUTABLE
+        );
+
+        androidx.core.app.NotificationCompat.Builder builder =
+                new androidx.core.app.NotificationCompat.Builder(this, channelId)
+                        .setSmallIcon(android.R.drawable.ic_dialog_info) // Cambia por tu icono R.drawable.ic_pop_error si quieres
+                        .setContentTitle(titulo != null ? titulo : "Aviso")
+                        .setContentText(cuerpo != null ? cuerpo : "")
+                        .setAutoCancel(true)
+                        .setContentIntent(pendingIntent)
+                        .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH);
+
+        notificationManager.notify(101, builder.build());
+    }
+
+    // --- LÓGICA MOSTRAR LISTA DE FICHAJES ---
     private void mostrarHistorialFichajes() {
         String token = "Bearer " + sessionManager.getAuthToken();
         Call<List<FichajeResponse>> call = RetrofitClient.getInstance().getMyApi().obtenerHistorial(token);
@@ -152,19 +222,17 @@ public class MainActivity extends AppCompatActivity {
                         for (int i = 0; i < lista.size(); i++) {
                             FichajeResponse f = lista.get(i);
 
-                            // PROTECCIÓN CONTRA NULOS (Arregla el error de getFechaHora)
                             String rawFecha = f.getFechaHora();
                             String fechaLimpia = "Sin fecha";
 
                             if (rawFecha != null) {
                                 fechaLimpia = rawFecha.replace("T", " ");
-                                // Cortamos segundos (YYYY-MM-DD HH:mm)
                                 if(fechaLimpia.length() > 16) fechaLimpia = fechaLimpia.substring(0, 16);
                             }
 
                             items[i] = (f.getTipo() != null ? f.getTipo() : "REGISTRO") + "\n" + fechaLimpia;
                         }
-                        builder.setItems(items, null); // Solo lectura
+                        builder.setItems(items, null);
                     }
 
                     builder.setPositiveButton("CERRAR", null);

@@ -5,57 +5,40 @@ import java.io.Serializable;
 
 public class TrabajadorResponse implements Serializable {
 
-    // Aceptamos cualquier variante común para el ID
-    @SerializedName(value = "id", alternate = {"id_trabajador", "user_id", "userId"})
+    // Matches Python schema keys exactly
+    @SerializedName("id_trabajador")
     private int idTrabajador;
 
-    // Aceptamos name/nombre/first_name
-    @SerializedName(value = "name", alternate = {"nombre", "first_name", "firstname"})
+    @SerializedName("nombre")
     private String nombre;
 
-    // Aceptamos surname/apellidos/last_name
-    @SerializedName(value = "surname", alternate = {"apellidos", "last_name", "lastname"})
+    @SerializedName("apellidos")
     private String apellidos;
 
-    @SerializedName(value = "nif", alternate = {"dni", "document"})
+    @SerializedName("nif")
     private String nif;
 
-    @SerializedName(value = "email", alternate = {"mail", "correo"})
+    @SerializedName("email")
     private String email;
 
-    // Aceptamos role/rol/type
-    @SerializedName(value = "role", alternate = {"rol", "tipo", "type"})
+    // Use "rol_nombre" as defined in TrabajadorSchema in schemas.py
+    @SerializedName("rol_nombre")
     private String rol;
 
     public TrabajadorResponse() {
     }
 
-    // Getters seguros (evitan nulos)
-    public int getIdTrabajador() {
-        return idTrabajador;
-    }
+    public int getIdTrabajador() { return idTrabajador; }
 
-    public String getNombre() {
-        return nombre != null ? nombre : "Sin Nombre";
-    }
+    public String getNombre() { return nombre != null ? nombre : "Sin Nombre"; }
 
-    public String getApellidos() {
-        return apellidos != null ? apellidos : "";
-    }
+    public String getApellidos() { return apellidos != null ? apellidos : ""; }
 
-    public String getNif() {
-        return nif != null ? nif : "---";
-    }
+    public String getNif() { return nif != null ? nif : "---"; }
 
-    public String getEmail() {
-        return email != null ? email : "";
-    }
+    public String getEmail() { return email; }
 
-    public String getRol() {
-        return rol != null ? rol : "Trabajador";
-    }
+    public String getRol() { return rol != null ? rol : "Trabajador"; }
 
-    public String getNombreCompleto() {
-        return getNombre() + " " + getApellidos();
-    }
+    public String getNombreCompleto() { return getNombre() + " " + getApellidos(); }
 }

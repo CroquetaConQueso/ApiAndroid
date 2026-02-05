@@ -5,16 +5,14 @@ import java.io.Serializable;
 
 public class EmpresaConfigResponse implements Serializable {
 
-    // CAMBIO CLAVE: "value" es lo que se envía al servidor (Inglés).
-    // "alternate" permite leer lo que llega, venga como venga.
-
-    @SerializedName(value = "latitude", alternate = {"lat", "latitud"})
+    // Must match Python schema exactly: "latitud", "longitud", "radio"
+    @SerializedName("latitud")
     private Double latitud;
 
-    @SerializedName(value = "longitude", alternate = {"lon", "lng", "longitud"})
+    @SerializedName("longitud")
     private Double longitud;
 
-    @SerializedName(value = "radius", alternate = {"radio", "r"})
+    @SerializedName("radio")
     private Integer radio;
 
     public EmpresaConfigResponse() {
@@ -26,27 +24,12 @@ public class EmpresaConfigResponse implements Serializable {
         this.radio = radio;
     }
 
-    public Double getLatitud() {
-        return latitud;
-    }
+    public Double getLatitud() { return latitud; }
+    public void setLatitud(Double latitud) { this.latitud = latitud; }
 
-    public void setLatitud(Double latitud) {
-        this.latitud = latitud;
-    }
+    public Double getLongitud() { return longitud; }
+    public void setLongitud(Double longitud) { this.longitud = longitud; }
 
-    public Double getLongitud() {
-        return longitud;
-    }
-
-    public void setLongitud(Double longitud) {
-        this.longitud = longitud;
-    }
-
-    public Integer getRadio() {
-        return radio;
-    }
-
-    public void setRadio(Integer radio) {
-        this.radio = radio;
-    }
+    public Integer getRadio() { return radio; }
+    public void setRadio(Integer radio) { this.radio = radio; }
 }

@@ -1,19 +1,32 @@
 package com.example.trabajoapi.data;
 
+import com.google.gson.annotations.SerializedName;
+
 public class LoginResponse {
-    private String access_token;
-    private String nif;
+    @SerializedName("access_token")
+    private String accessToken;
+
+    @SerializedName("id_trabajador")
+    private int idTrabajador;
+
+    @SerializedName("nombre")
+    private String nombre;
+
+    @SerializedName("rol")
     private String rol;
 
-    public String getAccessToken() {
-        return access_token;
-    }
+    @SerializedName("id_empresa")
+    private int idEmpresa;
 
-    public String getNif() {
-        return nif;
-    }
+    // --- NUEVO CAMPO PARA EL AVISO ---
+    @SerializedName("recordatorio")
+    private RecordatorioResponse recordatorio;
 
-    public String getRol() {
-        return rol;
-    }
+    // Getters
+    public String getAccessToken() { return accessToken; }
+    public int getIdTrabajador() { return idTrabajador; }
+    public String getNombre() { return nombre; }
+    public String getRol() { return rol; }
+    public int getIdEmpresa() { return idEmpresa; }
+    public RecordatorioResponse getRecordatorio() { return recordatorio; }
 }

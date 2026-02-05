@@ -94,4 +94,8 @@ public interface ApiService {
             @Header("Authorization") String token,
             @Body EmpresaConfigResponse config
     );
+
+    @GET("api/recordatorio-fichaje")
+    Call<RecordatorioResponse> getRecordatorioFichaje(@Header("Authorization") String token);
+
 }
