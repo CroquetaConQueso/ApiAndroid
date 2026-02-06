@@ -1,9 +1,11 @@
 package com.example.trabajoapi.data;
+
 import com.google.gson.annotations.SerializedName;
 
 public class RecordatorioResponse {
+
     @SerializedName("avisar")
-    private boolean avisar;
+    private Boolean avisar;
 
     @SerializedName("titulo")
     private String titulo;
@@ -11,7 +13,14 @@ public class RecordatorioResponse {
     @SerializedName("mensaje")
     private String mensaje;
 
-    public boolean isAvisar() { return avisar; }
+    public boolean hasAvisarFlag() {
+        return avisar != null;
+    }
+
+    public boolean isAvisar() {
+        return avisar != null && avisar;
+    }
+
     public String getTitulo() { return titulo; }
     public String getMensaje() { return mensaje; }
 }

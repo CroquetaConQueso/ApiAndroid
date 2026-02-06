@@ -27,14 +27,10 @@ import com.example.trabajoapi.data.FichajeResponse;
 import com.example.trabajoapi.data.RecordatorioResponse;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
-import com.example.trabajoapi.data.IncidenciaHelper;
-import com.example.trabajoapi.data.IncidenciaResponse;
 import com.example.trabajoapi.data.repository.MainRepository;
-import com.example.trabajoapi.data.repository.IncidenciaRepository;
 import com.example.trabajoapi.ui.main.MainViewModel;
 import com.example.trabajoapi.ui.main.MainViewModelFactory;
-import com.example.trabajoapi.ui.incidencia.IncidenciaViewModel;
-import com.example.trabajoapi.ui.incidencia.IncidenciaViewModelFactory;
+import com.example.trabajoapi.work.TrabajadorRecordatorioScheduler;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -55,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
 
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
+    private com.example.trabajoapi.data.IncidenciaHelper incidenciaHelper;
 
     private MaterialButton btnFicharMain;
     private TextView tvHorasExtraValor;
@@ -66,10 +63,6 @@ public class MainActivity extends AppCompatActivity {
 
     private MainViewModel vm;
 
-    // Incidencias (MVVM)
-    private IncidenciaHelper incidenciaHelper;
-    private IncidenciaViewModel ivm;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -77,20 +70,23 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         sessionManager = new SessionManager(this);
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Main VM
+        // Si hay sesión, aseguramos el worker programado
+        if (sessionManager.getAuthToken() != null) {
+            TrabajadorRecordatorioScheduler.schedule(this);
+        }
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        incidenciaHelper = new com.example.trabajoapi.data.IncidenciaHelper(
+                this,
+                RetrofitClient.getInstance().getMyApi(),
+                sessionManager
+        );
+
         vm = new ViewModelProvider(
                 this,
                 new MainViewModelFactory(new MainRepository())
         ).get(MainViewModel.class);
-
-        // Incidencias VM + helper UI-only
-        incidenciaHelper = new IncidenciaHelper(this);
-        ivm = new ViewModelProvider(
-                this,
-                new IncidenciaViewModelFactory(new IncidenciaRepository())
-        ).get(IncidenciaViewModel.class);
 
         btnFicharMain = findViewById(R.id.btnFicharMain);
         tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
@@ -109,23 +105,11 @@ public class MainActivity extends AppCompatActivity {
             checkPermissionsAndFichar();
         });
 
-        // Incidencias: UI dialog -> VM
         if (btnIncidencia != null) {
-            btnIncidencia.setOnClickListener(v -> {
-                incidenciaHelper.mostrarDialogoNuevaIncidencia((tipo, inicio, fin, comentario) -> {
-                    String token = sessionManager.getAuthToken();
-                    if (token == null) { irALogin(); return; }
-                    ivm.crearIncidencia("Bearer " + token, tipo, inicio, fin, comentario);
-                });
-            });
+            btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
         }
-
         if (btnHistorial != null) {
-            btnHistorial.setOnClickListener(v -> {
-                String token = sessionManager.getAuthToken();
-                if (token == null) { irALogin(); return; }
-                ivm.cargarHistorial("Bearer " + token);
-            });
+            btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
         }
 
         if (btnMisFichajes != null) {
@@ -145,6 +129,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
+                TrabajadorRecordatorioScheduler.cancel(this);
                 sessionManager.clearSession();
                 irALogin();
             });
@@ -166,7 +151,6 @@ public class MainActivity extends AppCompatActivity {
         intentarMostrarAvisoPendiente();
 
         observarVM();
-        observarIncidenciasVM();
 
         enviarTokenFCM();
     }
@@ -235,29 +219,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         vm.getLogoutEvent().observe(this, e -> {
-            if (e == null) return;
-            Boolean must = e.getContentIfNotHandled();
-            if (must != null && must) irALogin();
-        });
-    }
-
-    private void observarIncidenciasVM() {
-        ivm.getToastEvent().observe(this, e -> {
-            if (e == null) return;
-            String msg = e.getContentIfNotHandled();
-            if (msg != null) {
-                boolean ok = msg.contains("Solicitud") || msg.contains("Enviada") || msg.contains("¡Solicitud");
-                incidenciaHelper.mostrarToastPop(msg, ok);
-            }
-        });
-
-        ivm.getHistorialEvent().observe(this, e -> {
-            if (e == null) return;
-            List<IncidenciaResponse> lista = e.getContentIfNotHandled();
-            if (lista != null) incidenciaHelper.mostrarDialogoHistorial(lista);
-        });
-
-        ivm.getLogoutEvent().observe(this, e -> {
             if (e == null) return;
             Boolean must = e.getContentIfNotHandled();
             if (must != null && must) irALogin();
@@ -472,6 +433,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void irALogin() {
+        TrabajadorRecordatorioScheduler.cancel(this);
         sessionManager.clearSession();
         startActivity(new Intent(MainActivity.this, LoginActivity.class));
         finish();

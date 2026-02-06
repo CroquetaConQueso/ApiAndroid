@@ -6,11 +6,17 @@ import androidx.lifecycle.MutableLiveData;
 import com.example.trabajoapi.data.ApiService;
 import com.example.trabajoapi.data.LoginRequest;
 import com.example.trabajoapi.data.LoginResponse;
+import com.example.trabajoapi.data.ResetPasswordRequest;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
+/**
+ * AuthRepository
+ * - Mantiene compatibilidad con el patrón antiguo (LiveData<Result<...>>)
+ * - Añade métodos estilo "MainRepository" (enqueue con Callback) para MVVM limpio.
+ */
 public class AuthRepository {
 
     private final ApiService api;
@@ -18,6 +24,18 @@ public class AuthRepository {
     public AuthRepository(ApiService api) {
         this.api = api;
     }
+
+    public void login(String nif, String password, Callback<LoginResponse> callback) {
+        api.login(new LoginRequest(nif, password)).enqueue(callback);
+    }
+
+    public void resetPassword(String email, Callback<Void> callback) {
+        api.resetPassword(new ResetPasswordRequest(email)).enqueue(callback);
+    }
+
+    // ---------------------------
+    // LEGACY (por compatibilidad): LiveData<Result<...>>
+    // ---------------------------
 
     public LiveData<Result<LoginResponse>> login(String nif, String password) {
         MutableLiveData<Result<LoginResponse>> live = new MutableLiveData<>();
@@ -39,6 +57,26 @@ public class AuthRepository {
         return live;
     }
 
+    public LiveData<Result<Void>> resetPassword(String email) {
+        MutableLiveData<Result<Void>> live = new MutableLiveData<>();
+        api.resetPassword(new ResetPasswordRequest(email)).enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    live.postValue(Result.success(null));
+                } else {
+                    live.postValue(Result.error("No se pudo enviar el email"));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                live.postValue(Result.error("Error de red: " + (t != null ? t.getMessage() : "")));
+            }
+        });
+        return live;
+    }
+
     public static class Result<T> {
         public final T data;
         public final String error;
@@ -51,6 +89,6 @@ public class AuthRepository {
         public static <T> Result<T> success(T data) { return new Result<>(data, null); }
         public static <T> Result<T> error(String error) { return new Result<>(null, error); }
 
-        public boolean isSuccess() { return data != null; }
+        public boolean isSuccess() { return error == null; }
     }
 }

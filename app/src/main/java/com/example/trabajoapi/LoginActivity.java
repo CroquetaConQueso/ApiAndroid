@@ -1,151 +1,141 @@
 package com.example.trabajoapi;
 
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatButton;
+import androidx.lifecycle.ViewModelProvider;
 
-import com.example.trabajoapi.data.LoginRequest;
 import com.example.trabajoapi.data.LoginResponse;
-import com.example.trabajoapi.data.ResetPasswordRequest;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
-
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
+import com.example.trabajoapi.data.repository.AuthRepository;
+import com.example.trabajoapi.ui.login.LoginViewModel;
+import com.example.trabajoapi.ui.login.LoginViewModelFactory;
 
 public class LoginActivity extends AppCompatActivity {
 
-    private EditText etNif, etPassword;
+    private EditText etNif, etPass;
+    private AppCompatButton btnLogin;
+    private TextView tvForgot;
+
     private SessionManager sessionManager;
+    private LoginViewModel vm;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         if (getSupportActionBar() != null) getSupportActionBar().hide();
-
-        sessionManager = new SessionManager(this);
-        if (sessionManager.getAuthToken() != null) {
-            irAMain();
-            return;
-        }
-
         setContentView(R.layout.activity_login);
 
+        sessionManager = new SessionManager(this);
+
+        // OJO: estos IDs deben existir en tu activity_login.xml
         etNif = findViewById(R.id.etNifLogin);
-        etPassword = findViewById(R.id.etPassLogin);
+        etPass = findViewById(R.id.etPassLogin);
+        btnLogin = findViewById(R.id.btnLogin);
+        tvForgot = findViewById(R.id.tvForgot);
 
-        View btnLogin = findViewById(R.id.btnLogin);
-        TextView tvForgotPassword = findViewById(R.id.tvForgot);
+        AuthRepository repo = new AuthRepository(RetrofitClient.getInstance().getMyApi());
+        vm = new ViewModelProvider(this, new LoginViewModelFactory(repo)).get(LoginViewModel.class);
 
-        btnLogin.setOnClickListener(v -> login());
-        tvForgotPassword.setOnClickListener(v -> mostrarDialogoRecuperacion());
-    }
+        observarVM();
 
-    private void login() {
-        String nif = etNif.getText().toString().trim().toUpperCase();
-        String password = etPassword.getText().toString().trim();
+        btnLogin.setOnClickListener(v -> {
+            btnLogin.setEnabled(false);
+            btnLogin.setText("...");
+            vm.login(
+                    etNif.getText() != null ? etNif.getText().toString() : "",
+                    etPass.getText() != null ? etPass.getText().toString() : ""
+            );
+        });
 
-        if (nif.isEmpty() || password.isEmpty()) {
-            Toast.makeText(this, "Rellena todos los campos", Toast.LENGTH_SHORT).show();
-            return;
+        if (tvForgot != null) {
+            tvForgot.setOnClickListener(v -> mostrarDialogoResetPassword());
         }
-
-        LoginRequest loginRequest = new LoginRequest(nif, password);
-
-        RetrofitClient.getInstance().getMyApi().login(loginRequest)
-                .enqueue(new Callback<LoginResponse>() {
-                    @Override
-                    public void onResponse(Call<LoginResponse> call, Response<LoginResponse> response) {
-                        if (response.isSuccessful() && response.body() != null) {
-                            LoginResponse loginData = response.body();
-
-                            sessionManager.saveAuthToken(loginData.getAccessToken());
-                            sessionManager.saveRol(loginData.getRol());
-
-                            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-
-                            LoginResponse.Recordatorio r = loginData.getRecordatorio();
-                            if (r != null) {
-                                System.out.println("[ANDROID][LOGIN] recordatorio.avisar=" + r.isAvisar()
-                                        + " titulo=" + r.getTitulo()
-                                        + " mensaje=" + r.getMensaje());
-                            } else {
-                                System.out.println("[ANDROID][LOGIN] recordatorio=null");
-                            }
-
-                            if (r != null && r.isAvisar()) {
-                                intent.putExtra("AVISO_TITULO", r.getTitulo());
-                                intent.putExtra("AVISO_MENSAJE", r.getMensaje());
-                            }
-
-                            startActivity(intent);
-                            finish();
-                        } else {
-                            Toast.makeText(LoginActivity.this, "Credenciales incorrectas", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<LoginResponse> call, Throwable t) {
-                        Toast.makeText(LoginActivity.this, "Error de red: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
     }
 
-    private void mostrarDialogoRecuperacion() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("RECUPERAR CLAVE");
-        builder.setMessage("Introduce tu Email registrado:");
+    private void observarVM() {
+        vm.getLoading().observe(this, isLoading -> {
+            boolean loading = isLoading != null && isLoading;
+            btnLogin.setEnabled(!loading);
+            if (!loading) btnLogin.setText("ENTRAR"); // cámbialo si tu botón tiene otro texto
+        });
 
-        final EditText input = new EditText(this);
+        vm.getToastEvent().observe(this, e -> {
+            if (e == null) return;
+            String raw = e.getContentIfNotHandled();
+            if (raw == null) return;
+
+            boolean ok = raw.startsWith("OK:");
+            String msg = raw;
+
+            if (raw.startsWith("OK:") || raw.startsWith("ERROR:")) {
+                msg = raw.substring(raw.indexOf(":") + 1).trim();
+            }
+
+            mostrarToastPop(msg, ok);
+        });
+
+        vm.getLoginOkEvent().observe(this, e -> {
+            if (e == null) return;
+            LoginResponse r = e.getContentIfNotHandled();
+            if (r == null) return;
+
+            // Tu SessionManager real:
+            sessionManager.saveAuthToken(r.getAccessToken());
+            sessionManager.saveRol(r.getRol());
+
+            startActivity(new Intent(LoginActivity.this, MainActivity.class));
+            finish();
+        });
+    }
+
+    private void mostrarDialogoResetPassword() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("RECUPERAR CONTRASEÑA");
+
+        EditText input = new EditText(this);
+        input.setHint("Email");
         input.setInputType(InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
-        input.setHint("usuario@empresa.com");
+        input.setPadding(60, 40, 60, 40);
         builder.setView(input);
 
         builder.setPositiveButton("ENVIAR", (dialog, which) -> {
-            String identificador = input.getText().toString().trim();
-            if (!identificador.isEmpty()) solicitarResetApi(identificador);
+            String email = input.getText() != null ? input.getText().toString() : "";
+            vm.resetPassword(email);
         });
 
-        builder.setNegativeButton("CANCELAR", (dialog, which) -> dialog.cancel());
+        builder.setNegativeButton("CANCELAR", null);
         builder.show();
     }
 
-    private void solicitarResetApi(String identificador) {
-        ResetPasswordRequest request = new ResetPasswordRequest(identificador);
-        Call<Void> call = RetrofitClient.getInstance().getMyApi().resetPassword(request);
+    private void mostrarToastPop(String mensaje, boolean esExito) {
+        try {
+            LayoutInflater inflater = getLayoutInflater();
+            View layout = inflater.inflate(R.layout.layout_toast_pop, null);
 
-        call.enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Toast.makeText(LoginActivity.this, "Correo enviado. Revisa tu bandeja.", Toast.LENGTH_LONG).show();
-                } else {
-                    Toast.makeText(LoginActivity.this, "No se encontró el usuario.", Toast.LENGTH_SHORT).show();
-                }
-            }
+            TextView text = layout.findViewById(R.id.toastText);
+            text.setText(mensaje);
 
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "Fallo de red: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
+            ImageView icon = layout.findViewById(R.id.toastIcon);
+            icon.setImageResource(esExito ? R.drawable.ic_pop_success : R.drawable.ic_pop_error);
 
-    private void irAMain() {
-        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        startActivity(intent);
-        finish();
+            Toast toast = new Toast(getApplicationContext());
+            toast.setDuration(Toast.LENGTH_SHORT);
+            toast.setView(layout);
+            toast.show();
+        } catch (Exception e) {
+            Toast.makeText(this, mensaje, Toast.LENGTH_SHORT).show();
+        }
     }
 }
