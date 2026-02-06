@@ -2,11 +2,9 @@ package com.example.trabajoapi;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.ImageView;
-
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.AppCompatButton;
-
 import com.example.trabajoapi.data.SessionManager;
 
 public class AdminActivity extends AppCompatActivity {
@@ -20,13 +18,26 @@ public class AdminActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
+        // Botón Volver (Flecha atrás)
         ImageView btnVolver = findViewById(R.id.btnVolverAdmin);
-        if (btnVolver != null) btnVolver.setOnClickListener(v -> finish());
+        if (btnVolver != null) {
+            btnVolver.setOnClickListener(v -> finish());
+        }
 
-        AppCompatButton btnEmpleados = findViewById(R.id.btnAdminEmpleados);
-        AppCompatButton btnMapa = findViewById(R.id.btnAdminMapa);
+        // Botón Empleados (Lista -> Historial)
+        View btnEmpleados = findViewById(R.id.cardEmpleados); // Ojo al ID del XML
+        if (btnEmpleados != null) {
+            btnEmpleados.setOnClickListener(v ->
+                    startActivity(new Intent(AdminActivity.this, AdminEmpleadosActivity.class))
+            );
+        }
 
-        btnEmpleados.setOnClickListener(v -> startActivity(new Intent(this, AdminEmpleadosActivity.class)));
-        btnMapa.setOnClickListener(v -> startActivity(new Intent(this, AdminMapaActivity.class)));
+        // Botón Mapa
+        View btnMapa = findViewById(R.id.cardMapa);
+        if (btnMapa != null) {
+            btnMapa.setOnClickListener(v ->
+                    startActivity(new Intent(AdminActivity.this, AdminMapaActivity.class))
+            );
+        }
     }
 }

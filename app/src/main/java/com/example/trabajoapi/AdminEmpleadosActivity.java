@@ -47,6 +47,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
+        // Inicialización del ViewModel con su Factory y Repositorio
         vm = new ViewModelProvider(
                 this,
                 new AdminEmpleadosViewModelFactory(new AdminRepository())
@@ -55,7 +56,10 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         observarVM();
 
         String token = sessionManager.getAuthToken();
-        if (token == null) { irALogin(); return; }
+        if (token == null) {
+            irALogin();
+            return;
+        }
 
         progressBar.setVisibility(View.VISIBLE);
         vm.cargarEmpleados("Bearer " + token);
@@ -84,6 +88,8 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
             if (go != null && go) irALogin();
         });
 
+        // Mantenemos este observador aunque ahora usemos Activity nueva,
+        // para no romper la estructura existente.
         vm.getFichajesEmpleadoEvent().observe(this, e -> {
             if (e == null) return;
             AdminEmpleadosViewModel.EmpleadoFichajesUI ui = e.getContentIfNotHandled();
@@ -93,7 +99,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
     }
 
     private void pintarLista(List<TrabajadorResponse> empleados) {
-        // Al pulsar un empleado, navegamos a su historial
+        // Al pulsar un empleado, navegamos a su historial en la NUEVA Activity
         EmpleadoAdapter adapter = new EmpleadoAdapter(empleados, empleado -> {
 
             Intent intent = new Intent(AdminEmpleadosActivity.this, AdminVerFichajesActivity.class);
@@ -108,6 +114,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
     }
 
+    // Función mantenida (Legacy)
     private void mostrarDialogoFichajesEmpleado(String nombreEmpleado, List<FichajeResponse> lista) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("FICHAJES — " + (nombreEmpleado != null ? nombreEmpleado : "Empleado"));
