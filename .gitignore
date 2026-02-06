@@ -21,4 +21,4 @@ google-services.json
 
 # --- Keystores (Si generas APKs firmados) ---
 *.jks
-*.keystore
+*.keystoregit p

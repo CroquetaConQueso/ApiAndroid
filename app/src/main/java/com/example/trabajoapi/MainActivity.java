@@ -22,6 +22,11 @@ import androidx.appcompat.widget.AppCompatButton;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.work.Constraints;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.NetworkType;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
 import com.example.trabajoapi.data.FichajeResponse;
 import com.example.trabajoapi.data.IncidenciaHelper;
@@ -35,7 +40,7 @@ import com.example.trabajoapi.ui.incidencia.IncidenciaViewModel;
 import com.example.trabajoapi.ui.incidencia.IncidenciaViewModelFactory;
 import com.example.trabajoapi.ui.main.MainViewModel;
 import com.example.trabajoapi.ui.main.MainViewModelFactory;
-import com.example.trabajoapi.work.TrabajadorRecordatorioScheduler;
+import com.example.trabajoapi.work.TrabajadorRecordatorio;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
@@ -43,6 +48,7 @@ import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.button.MaterialButton;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -53,92 +59,134 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 112;
     private static final int PERMISSION_ID = 44;
 
+    private static final String WORK_UNIQUE_NAME = "recordatorio_fichaje_bg";
+
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
 
     private MaterialButton btnFicharMain;
     private TextView tvHorasExtraValor;
     private TextView tvEstadoHoras;
-    private boolean estaDentro = false;
 
     private String avisoTituloPendiente = null;
     private String avisoMensajePendiente = null;
 
     private MainViewModel vm;
 
-    // Incidencias (UI helper + MVVM)
+    // Incidencias (MVVM)
     private IncidenciaHelper incidenciaHelper;
     private IncidenciaViewModel ivm;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // Ocultar Action Bar para diseño limpio
         if (getSupportActionBar() != null) getSupportActionBar().hide();
-
         setContentView(R.layout.activity_main);
 
-        // 1. Inicializar componentes
         sessionManager = new SessionManager(this);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Validar sesión
-        if (sessionManager.getAuthToken() == null) {
-            irALogin();
-            return;
-        }
+        // ViewModels
+        vm = new ViewModelProvider(
+                this,
+                new MainViewModelFactory(new MainRepository())
+        ).get(MainViewModel.class);
 
-        // 2. ViewModel
-        // Usamos una Factory para inyectar el repositorio
-        MainViewModelFactory factory = new MainViewModelFactory(new MainRepository());
-        viewModel = new ViewModelProvider(this, factory).get(MainViewModel.class);
+        ivm = new ViewModelProvider(
+                this,
+                new IncidenciaViewModelFactory(new IncidenciaRepository())
+        ).get(IncidenciaViewModel.class);
 
-        // 3. Vincular Vistas
-        tvHorasExtra = findViewById(R.id.tvHorasExtraValor);
+        // Helper UI-only (OJO: tu helper solo acepta Context)
+        incidenciaHelper = new IncidenciaHelper(this);
+
+        // UI refs
+        btnFicharMain = findViewById(R.id.btnFicharMain);
+        tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
         tvEstadoHoras = findViewById(R.id.tvEstadoHoras);
-        btnFichar = findViewById(R.id.btnFicharMain);
-        btnAdmin = findViewById(R.id.btnAdminPanel);
 
-        // 4. Configurar Botones
-        btnFichar.setOnClickListener(v -> checkPermissionsAndFichar());
+        ImageView btnLogout = findViewById(R.id.btnLogoutIcon);
+        AppCompatButton btnIncidencia = findViewById(R.id.btnIncidencia);
+        AppCompatButton btnHistorial = findViewById(R.id.btnHistorial);
+        AppCompatButton btnMisFichajes = findViewById(R.id.btnMisFichajes);
+        AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
+        AppCompatButton btnAdminPanel = findViewById(R.id.btnAdminPanel);
 
-        findViewById(R.id.btnLogoutIcon).setOnClickListener(v -> {
-            sessionManager.clearSession();
-            irALogin();
+        // Fichar
+        btnFicharMain.setOnClickListener(v -> {
+            btnFicharMain.setEnabled(false);
+            btnFicharMain.setText("...");
+            checkPermissionsAndFichar();
         });
 
-        // Botón Incidencias
-        findViewById(R.id.btnIncidencia).setOnClickListener(v -> {
-            // Aquí llamarías a tu diálogo de incidencias
-            // Ej: new IncidenciaHelper(this, ...).mostrarDialogo();
-            Toast.makeText(this, "Función Incidencias", Toast.LENGTH_SHORT).show();
-        });
-
-        // Botón Ver Mis Fichajes (NUEVO)
-        findViewById(R.id.btnMisFichajes).setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, HistorialActivity.class));
-        });
-
-        // Botón Cambiar Clave
-        findViewById(R.id.btnCambiarClave).setOnClickListener(v -> mostrarDialogoCambioPassword());
-
-        // Botón Admin (Solo visible si es admin)
-        if (sessionManager.isAdmin()) {
-            btnAdmin.setVisibility(View.VISIBLE);
-            btnAdmin.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AdminActivity.class)));
-        } else {
-            btnAdmin.setVisibility(View.GONE);
+        // Incidencia: ahora requiere listener
+        if (btnIncidencia != null) {
+            btnIncidencia.setOnClickListener(v -> {
+                incidenciaHelper.mostrarDialogoNuevaIncidencia((tipo, inicio, fin, comentario) -> {
+                    String token = sessionManager.getAuthToken();
+                    if (token == null) { irALogin(); return; }
+                    ivm.crearIncidencia("Bearer " + token, tipo, inicio, fin, comentario);
+                });
+            });
         }
 
-        // 5. Observar ViewModel
-        observarViewModel();
+        // Historial incidencias: lo carga el VM y lo pinta el helper
+        if (btnHistorial != null) {
+            btnHistorial.setOnClickListener(v -> {
+                String token = sessionManager.getAuthToken();
+                if (token == null) { irALogin(); return; }
+                ivm.cargarHistorial("Bearer " + token);
+            });
+        }
 
-        // 6. Revisar si venimos del login con aviso
+        // Mis fichajes
+        if (btnMisFichajes != null) {
+            btnMisFichajes.setOnClickListener(v -> {
+                String token = sessionManager.getAuthToken();
+                if (token == null) { irALogin(); return; }
+                vm.pedirHistorialParaDialogo("Bearer " + token);
+            });
+        }
+
+        // Cambiar clave
+        if (btnCambiarClave != null) {
+            btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
+        }
+
+        // Logout
+        if (btnLogout != null) {
+            btnLogout.setOnClickListener(v -> {
+                cancelRecordatorioWorker();
+                sessionManager.clearSession();
+                irALogin();
+            });
+        }
+
+        // Admin panel
+        if (btnAdminPanel != null) {
+            if (sessionManager.isAdmin()) {
+                btnAdminPanel.setVisibility(View.VISIBLE);
+                btnAdminPanel.setOnClickListener(v ->
+                        startActivity(new Intent(MainActivity.this, AdminActivity.class))
+                );
+            } else {
+                btnAdminPanel.setVisibility(View.GONE);
+            }
+        }
+
         prepararAvisoLoginSiExiste();
-
-        // 7. Permisos de notificación
         pedirPermisosNotificaciones();
+        intentarMostrarAvisoPendiente();
+
+        // Si hay sesión, programamos worker BG
+        if (sessionManager.getAuthToken() != null) {
+            scheduleRecordatorioWorker();
+        }
+
+        observarVM();
+        observarIncidenciasVM();
+
+        enviarTokenFCM();
     }
 
     @Override
@@ -151,13 +199,13 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Por si el SO mató el worker, lo reaseguramos
-        TrabajadorRecordatorioScheduler.schedule(this);
+        // Re-asegurar worker BG en caso de reinstalación/limpieza
+        scheduleRecordatorioWorker();
 
         String bearer = "Bearer " + token;
         vm.cargarDashboard(bearer);
 
-        // ESTE es el “cada vez que abra la app”:
+        // Esto es lo que quieres: recordatorio cada vez que abres la app
         vm.comprobarRecordatorio(bearer);
     }
 
@@ -221,7 +269,7 @@ public class MainActivity extends AppCompatActivity {
             if (e == null) return;
             String msg = e.getContentIfNotHandled();
             if (msg != null) {
-                boolean ok = !msg.toUpperCase().contains("ERROR");
+                boolean ok = msg.toUpperCase().contains("SOLICITUD") || msg.toUpperCase().contains("ENVIAD");
                 incidenciaHelper.mostrarToastPop(msg, ok);
             }
         });
@@ -243,7 +291,7 @@ public class MainActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         builder.setTitle("MIS ÚLTIMOS FICHAJES");
 
-        if (lista.isEmpty()) {
+        if (lista == null || lista.isEmpty()) {
             builder.setMessage("No tienes registros de fichaje aún.");
         } else {
             String[] items = new String[lista.size()];
@@ -267,7 +315,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void actualizarBotonFichaje(boolean estoyDentro) {
-        this.estaDentro = estoyDentro;
         btnFicharMain.setEnabled(true);
 
         if (estoyDentro) {
@@ -282,29 +329,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkPermissionsAndFichar() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
             obtenerUbicacionYFichar();
         } else {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_ID);
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    PERMISSION_ID
+            );
             btnFicharMain.setEnabled(true);
         }
     }
 
     private void obtenerUbicacionYFichar() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) return;
 
         fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener(this, new OnSuccessListener<Location>() {
                     @Override
                     public void onSuccess(Location location) {
+                        String token = sessionManager.getAuthToken();
+                        if (token == null) { irALogin(); return; }
+
                         if (location != null) {
-                            String token = sessionManager.getAuthToken();
-                            if (token == null) { irALogin(); return; }
                             vm.fichar("Bearer " + token, location.getLatitude(), location.getLongitude());
                         } else {
                             mostrarToastPop("Activa el GPS", false);
-                            String token = sessionManager.getAuthToken();
-                            if (token != null) vm.consultarEstadoFichaje("Bearer " + token);
+                            vm.consultarEstadoFichaje("Bearer " + token);
                         }
                     }
                 })
@@ -336,18 +389,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void prepararAvisoLoginSiExiste() {
-        if (getIntent() != null && getIntent().hasExtra("AVISO_TITULO")) {
-            String titulo = getIntent().getStringExtra("AVISO_TITULO");
-            String mensaje = getIntent().getStringExtra("AVISO_MENSAJE");
+        Intent i = getIntent();
+        if (i == null) return;
 
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle(titulo)
-                    .setMessage(mensaje)
-                    .setIcon(android.R.drawable.ic_dialog_alert)
-                    .setPositiveButton("ENTENDIDO", null)
-                    .show();
+        String titulo = i.getStringExtra("AVISO_TITULO");
+        String mensaje = i.getStringExtra("AVISO_MENSAJE");
 
-            getIntent().removeExtra("AVISO_TITULO");
+        if (titulo != null && mensaje != null) {
+            avisoTituloPendiente = titulo;
+            avisoMensajePendiente = mensaje;
+
+            i.removeExtra("AVISO_TITULO");
+            i.removeExtra("AVISO_MENSAJE");
+            setIntent(i);
         }
     }
 
@@ -381,7 +435,7 @@ public class MainActivity extends AppCompatActivity {
 
         android.app.PendingIntent pendingIntent = android.app.PendingIntent.getActivity(
                 this, 0, intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE
+                android.app.PendingIntent.FLAG_ONE_SHOT | android.app.PendingIntent.FLAG_IMMUTABLE
         );
 
         androidx.core.app.NotificationCompat.Builder builder =
@@ -443,14 +497,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void irALogin() {
-        TrabajadorRecordatorioScheduler.cancel(this);
+        cancelRecordatorioWorker();
         sessionManager.clearSession();
         startActivity(new Intent(MainActivity.this, LoginActivity.class));
         finish();
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         if (requestCode == PERMISSION_ID) {
@@ -489,5 +545,30 @@ public class MainActivity extends AppCompatActivity {
                                 @Override public void onFailure(Call<Void> call, Throwable t) { }
                             });
                 });
+    }
+
+    // ---------- WORKMANAGER BG RECORDATORIO ----------
+
+    private void scheduleRecordatorioWorker() {
+        Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
+
+        PeriodicWorkRequest req = new PeriodicWorkRequest.Builder(
+                TrabajadorRecordatorio.class,
+                15, TimeUnit.MINUTES
+        )
+                .setConstraints(constraints)
+                .build();
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                WORK_UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                req
+        );
+    }
+
+    private void cancelRecordatorioWorker() {
+        WorkManager.getInstance(this).cancelUniqueWork(WORK_UNIQUE_NAME);
     }
 }
