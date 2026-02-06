@@ -3,7 +3,6 @@ package com.example.trabajoapi.data;
 import com.google.gson.annotations.SerializedName;
 
 public class LoginResponse {
-
     @SerializedName("access_token")
     private String accessToken;
 
@@ -19,29 +18,17 @@ public class LoginResponse {
     @SerializedName("id_empresa")
     private int idEmpresa;
 
+    // --- AGREGAR ESTO (Faltaba) ---
     @SerializedName("recordatorio")
-    private Recordatorio recordatorio;
+    private RecordatorioResponse recordatorio;
 
+    // Getters
     public String getAccessToken() { return accessToken; }
     public int getIdTrabajador() { return idTrabajador; }
     public String getNombre() { return nombre; }
     public String getRol() { return rol; }
     public int getIdEmpresa() { return idEmpresa; }
-    public Recordatorio getRecordatorio() { return recordatorio; }
 
-    public static class Recordatorio {
-
-        @SerializedName("avisar")
-        private boolean avisar;
-
-        @SerializedName("titulo")
-        private String titulo;
-
-        @SerializedName("mensaje")
-        private String mensaje;
-
-        public boolean isAvisar() { return avisar; }
-        public String getTitulo() { return titulo; }
-        public String getMensaje() { return mensaje; }
-    }
+    // --- AGREGAR EL GETTER ---
+    public RecordatorioResponse getRecordatorio() { return recordatorio; }
 }

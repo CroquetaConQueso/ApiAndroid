@@ -22,6 +22,9 @@ public class AdminRepository {
         return api.getEmpleados(bearerToken);
     }
 
+    public Call<List<FichajeResponse>> getFichajesDeEmpleado(String token, int idEmpleado) {
+        return RetrofitClient.getInstance().getMyApi().getFichajesEmpleado(token, idEmpleado);
+    }
     public Call<List<FichajeResponse>> getFichajesEmpleado(String bearerToken, int idEmpleado) {
         return api.getFichajesEmpleado(bearerToken, idEmpleado);
     }

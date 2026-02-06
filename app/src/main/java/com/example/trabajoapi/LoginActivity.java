@@ -68,7 +68,7 @@ public class LoginActivity extends AppCompatActivity {
         vm.getLoading().observe(this, isLoading -> {
             boolean loading = isLoading != null && isLoading;
             btnLogin.setEnabled(!loading);
-            if (!loading) btnLogin.setText("ENTRAR"); // cámbialo si tu botón tiene otro texto
+            if (!loading) btnLogin.setText("ENTRAR");
         });
 
         vm.getToastEvent().observe(this, e -> {
@@ -91,11 +91,17 @@ public class LoginActivity extends AppCompatActivity {
             LoginResponse r = e.getContentIfNotHandled();
             if (r == null) return;
 
-            // Tu SessionManager real:
-            sessionManager.saveAuthToken(r.getAccessToken());
-            sessionManager.saveRol(r.getRol());
+            sessionManager.saveSession(r);
 
-            startActivity(new Intent(LoginActivity.this, MainActivity.class));
+            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+            if (r.getRecordatorio() != null && r.getRecordatorio().isAvisar()) {
+                intent.putExtra("AVISO_TITULO", r.getRecordatorio().getTitulo());
+                intent.putExtra("AVISO_MENSAJE", r.getRecordatorio().getMensaje());
+            }
+
+            startActivity(intent);
             finish();
         });
     }

@@ -73,106 +73,72 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Ocultar Action Bar para diseño limpio
         if (getSupportActionBar() != null) getSupportActionBar().hide();
+
         setContentView(R.layout.activity_main);
 
+        // 1. Inicializar componentes
         sessionManager = new SessionManager(this);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Programar recordatorio en BG si hay sesión
-        if (sessionManager.getAuthToken() != null) {
-            TrabajadorRecordatorioScheduler.schedule(this);
+        // Validar sesión
+        if (sessionManager.getAuthToken() == null) {
+            irALogin();
+            return;
         }
 
-        // VM principal
-        vm = new ViewModelProvider(
-                this,
-                new MainViewModelFactory(new MainRepository())
-        ).get(MainViewModel.class);
+        // 2. ViewModel
+        // Usamos una Factory para inyectar el repositorio
+        MainViewModelFactory factory = new MainViewModelFactory(new MainRepository());
+        viewModel = new ViewModelProvider(this, factory).get(MainViewModel.class);
 
-        // Incidencias: helper UI + VM
-        incidenciaHelper = new IncidenciaHelper(this);
-        ivm = new ViewModelProvider(
-                this,
-                new IncidenciaViewModelFactory(new IncidenciaRepository())
-        ).get(IncidenciaViewModel.class);
-
-        btnFicharMain = findViewById(R.id.btnFicharMain);
-        tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
+        // 3. Vincular Vistas
+        tvHorasExtra = findViewById(R.id.tvHorasExtraValor);
         tvEstadoHoras = findViewById(R.id.tvEstadoHoras);
+        btnFichar = findViewById(R.id.btnFicharMain);
+        btnAdmin = findViewById(R.id.btnAdminPanel);
 
-        ImageView btnLogout = findViewById(R.id.btnLogoutIcon);
-        AppCompatButton btnIncidencia = findViewById(R.id.btnIncidencia);
-        AppCompatButton btnHistorial = findViewById(R.id.btnHistorial);
-        AppCompatButton btnMisFichajes = findViewById(R.id.btnMisFichajes);
-        AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
-        AppCompatButton btnAdminPanel = findViewById(R.id.btnAdminPanel);
+        // 4. Configurar Botones
+        btnFichar.setOnClickListener(v -> checkPermissionsAndFichar());
 
-        btnFicharMain.setOnClickListener(v -> {
-            btnFicharMain.setEnabled(false);
-            btnFicharMain.setText("...");
-            checkPermissionsAndFichar();
+        findViewById(R.id.btnLogoutIcon).setOnClickListener(v -> {
+            sessionManager.clearSession();
+            irALogin();
         });
 
-        // --- Incidencias ---
-        if (btnIncidencia != null) {
-            btnIncidencia.setOnClickListener(v -> {
-                incidenciaHelper.mostrarDialogoNuevaIncidencia((tipo, inicio, fin, comentario) -> {
-                    String token = sessionManager.getAuthToken();
-                    if (token == null) { irALogin(); return; }
-                    ivm.crearIncidencia("Bearer " + token, tipo, inicio, fin, comentario);
-                });
-            });
+        // Botón Incidencias
+        findViewById(R.id.btnIncidencia).setOnClickListener(v -> {
+            // Aquí llamarías a tu diálogo de incidencias
+            // Ej: new IncidenciaHelper(this, ...).mostrarDialogo();
+            Toast.makeText(this, "Función Incidencias", Toast.LENGTH_SHORT).show();
+        });
+
+        // Botón Ver Mis Fichajes (NUEVO)
+        findViewById(R.id.btnMisFichajes).setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, HistorialActivity.class));
+        });
+
+        // Botón Cambiar Clave
+        findViewById(R.id.btnCambiarClave).setOnClickListener(v -> mostrarDialogoCambioPassword());
+
+        // Botón Admin (Solo visible si es admin)
+        if (sessionManager.isAdmin()) {
+            btnAdmin.setVisibility(View.VISIBLE);
+            btnAdmin.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AdminActivity.class)));
+        } else {
+            btnAdmin.setVisibility(View.GONE);
         }
 
-        if (btnHistorial != null) {
-            btnHistorial.setOnClickListener(v -> {
-                String token = sessionManager.getAuthToken();
-                if (token == null) { irALogin(); return; }
-                ivm.cargarHistorial("Bearer " + token);
-            });
-        }
+        // 5. Observar ViewModel
+        observarViewModel();
 
-        // --- Mis fichajes ---
-        if (btnMisFichajes != null) {
-            btnMisFichajes.setOnClickListener(v -> {
-                String token = sessionManager.getAuthToken();
-                if (token == null) { irALogin(); return; }
-                vm.pedirHistorialParaDialogo("Bearer " + token);
-            });
-        }
-
-        if (btnCambiarClave != null) {
-            btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
-        }
-
-        if (btnLogout != null) {
-            btnLogout.setOnClickListener(v -> {
-                TrabajadorRecordatorioScheduler.cancel(this);
-                sessionManager.clearSession();
-                irALogin();
-            });
-        }
-
-        if (btnAdminPanel != null) {
-            if (sessionManager.isAdmin()) {
-                btnAdminPanel.setVisibility(View.VISIBLE);
-                btnAdminPanel.setOnClickListener(v ->
-                        startActivity(new Intent(MainActivity.this, AdminActivity.class))
-                );
-            } else {
-                btnAdminPanel.setVisibility(View.GONE);
-            }
-        }
-
+        // 6. Revisar si venimos del login con aviso
         prepararAvisoLoginSiExiste();
+
+        // 7. Permisos de notificación
         pedirPermisosNotificaciones();
-        intentarMostrarAvisoPendiente();
-
-        observarVM();
-        observarIncidenciasVM();
-
-        enviarTokenFCM();
     }
 
     @Override
@@ -370,19 +336,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void prepararAvisoLoginSiExiste() {
-        Intent i = getIntent();
-        if (i == null) return;
+        if (getIntent() != null && getIntent().hasExtra("AVISO_TITULO")) {
+            String titulo = getIntent().getStringExtra("AVISO_TITULO");
+            String mensaje = getIntent().getStringExtra("AVISO_MENSAJE");
 
-        String titulo = i.getStringExtra("AVISO_TITULO");
-        String mensaje = i.getStringExtra("AVISO_MENSAJE");
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(titulo)
+                    .setMessage(mensaje)
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setPositiveButton("ENTENDIDO", null)
+                    .show();
 
-        if (titulo != null && mensaje != null) {
-            avisoTituloPendiente = titulo;
-            avisoMensajePendiente = mensaje;
-
-            i.removeExtra("AVISO_TITULO");
-            i.removeExtra("AVISO_MENSAJE");
-            setIntent(i);
+            getIntent().removeExtra("AVISO_TITULO");
         }
     }
 

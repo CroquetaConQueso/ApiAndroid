@@ -30,8 +30,12 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".MainActivity" />
+        <activity android:name=".AdminVerFichajesActivity"
+            android:exported="false"
+            android:parentActivityName=".AdminEmpleadosActivity"/>
 
+        <activity android:name=".MainActivity" />
+        <activity android:name=".HistorialActivity" android:exported="false"/>
         <activity
             android:name=".AdminActivity"
             android:exported="false" />

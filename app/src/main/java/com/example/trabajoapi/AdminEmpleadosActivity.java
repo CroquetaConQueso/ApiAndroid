@@ -93,16 +93,18 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
     }
 
     private void pintarLista(List<TrabajadorResponse> empleados) {
+        // Al pulsar un empleado, navegamos a su historial
         EmpleadoAdapter adapter = new EmpleadoAdapter(empleados, empleado -> {
-            String token = sessionManager.getAuthToken();
-            if (token == null) { irALogin(); return; }
 
-            vm.cargarFichajesEmpleado(
-                    "Bearer " + token,
-                    empleado.getIdTrabajador(),
-                    empleado.getNombreCompleto()
-            );
+            Intent intent = new Intent(AdminEmpleadosActivity.this, AdminVerFichajesActivity.class);
+
+            // Pasamos los datos necesarios a la otra pantalla
+            intent.putExtra("ID_EMPLEADO", empleado.getIdTrabajador());
+            intent.putExtra("NOMBRE_EMPLEADO", empleado.getNombreCompleto());
+
+            startActivity(intent);
         });
+
         recyclerView.setAdapter(adapter);
     }
 

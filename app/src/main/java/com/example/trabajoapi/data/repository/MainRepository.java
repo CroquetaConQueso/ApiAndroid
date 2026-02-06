@@ -11,9 +11,12 @@ import com.example.trabajoapi.data.RetrofitClient;
 
 import java.util.List;
 
+import retrofit2.Call; // Importante: Algunos ViewModels usan Call directo
 import retrofit2.Callback;
 
 public class MainRepository {
+
+    // --- Métodos Void (Callback directo) ---
 
     public void obtenerHistorial(@NonNull String bearer, @NonNull Callback<List<FichajeResponse>> cb) {
         RetrofitClient.getInstance().getMyApi().obtenerHistorial(bearer).enqueue(cb);
@@ -33,5 +36,9 @@ public class MainRepository {
 
     public void changePassword(@NonNull String bearer, @NonNull ChangePasswordRequest req, @NonNull Callback<Void> cb) {
         RetrofitClient.getInstance().getMyApi().changePassword(bearer, req).enqueue(cb);
+    }
+
+    public Call<List<FichajeResponse>> obtenerHistorialCall(String token) {
+        return RetrofitClient.getInstance().getMyApi().obtenerHistorial(token);
     }
 }
