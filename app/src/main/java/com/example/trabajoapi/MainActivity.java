@@ -24,14 +24,18 @@ import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.trabajoapi.data.FichajeResponse;
+import com.example.trabajoapi.data.IncidenciaHelper;
+import com.example.trabajoapi.data.IncidenciaResponse;
 import com.example.trabajoapi.data.RecordatorioResponse;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
+import com.example.trabajoapi.data.repository.IncidenciaRepository;
 import com.example.trabajoapi.data.repository.MainRepository;
+import com.example.trabajoapi.ui.incidencia.IncidenciaViewModel;
+import com.example.trabajoapi.ui.incidencia.IncidenciaViewModelFactory;
 import com.example.trabajoapi.ui.main.MainViewModel;
 import com.example.trabajoapi.ui.main.MainViewModelFactory;
 import com.example.trabajoapi.work.TrabajadorRecordatorioScheduler;
-
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
@@ -51,7 +55,6 @@ public class MainActivity extends AppCompatActivity {
 
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
-    private com.example.trabajoapi.data.IncidenciaHelper incidenciaHelper;
 
     private MaterialButton btnFicharMain;
     private TextView tvHorasExtraValor;
@@ -63,6 +66,10 @@ public class MainActivity extends AppCompatActivity {
 
     private MainViewModel vm;
 
+    // Incidencias (UI helper + MVVM)
+    private IncidenciaHelper incidenciaHelper;
+    private IncidenciaViewModel ivm;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -70,23 +77,25 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         sessionManager = new SessionManager(this);
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Si hay sesión, aseguramos el worker programado
+        // Programar recordatorio en BG si hay sesión
         if (sessionManager.getAuthToken() != null) {
             TrabajadorRecordatorioScheduler.schedule(this);
         }
 
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        incidenciaHelper = new com.example.trabajoapi.data.IncidenciaHelper(
-                this,
-                RetrofitClient.getInstance().getMyApi(),
-                sessionManager
-        );
-
+        // VM principal
         vm = new ViewModelProvider(
                 this,
                 new MainViewModelFactory(new MainRepository())
         ).get(MainViewModel.class);
+
+        // Incidencias: helper UI + VM
+        incidenciaHelper = new IncidenciaHelper(this);
+        ivm = new ViewModelProvider(
+                this,
+                new IncidenciaViewModelFactory(new IncidenciaRepository())
+        ).get(IncidenciaViewModel.class);
 
         btnFicharMain = findViewById(R.id.btnFicharMain);
         tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
@@ -105,20 +114,30 @@ public class MainActivity extends AppCompatActivity {
             checkPermissionsAndFichar();
         });
 
+        // --- Incidencias ---
         if (btnIncidencia != null) {
-            btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
-        }
-        if (btnHistorial != null) {
-            btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
+            btnIncidencia.setOnClickListener(v -> {
+                incidenciaHelper.mostrarDialogoNuevaIncidencia((tipo, inicio, fin, comentario) -> {
+                    String token = sessionManager.getAuthToken();
+                    if (token == null) { irALogin(); return; }
+                    ivm.crearIncidencia("Bearer " + token, tipo, inicio, fin, comentario);
+                });
+            });
         }
 
+        if (btnHistorial != null) {
+            btnHistorial.setOnClickListener(v -> {
+                String token = sessionManager.getAuthToken();
+                if (token == null) { irALogin(); return; }
+                ivm.cargarHistorial("Bearer " + token);
+            });
+        }
+
+        // --- Mis fichajes ---
         if (btnMisFichajes != null) {
             btnMisFichajes.setOnClickListener(v -> {
                 String token = sessionManager.getAuthToken();
-                if (token == null) {
-                    irALogin();
-                    return;
-                }
+                if (token == null) { irALogin(); return; }
                 vm.pedirHistorialParaDialogo("Bearer " + token);
             });
         }
@@ -151,6 +170,7 @@ public class MainActivity extends AppCompatActivity {
         intentarMostrarAvisoPendiente();
 
         observarVM();
+        observarIncidenciasVM();
 
         enviarTokenFCM();
     }
@@ -165,8 +185,13 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        // Por si el SO mató el worker, lo reaseguramos
+        TrabajadorRecordatorioScheduler.schedule(this);
+
         String bearer = "Bearer " + token;
         vm.cargarDashboard(bearer);
+
+        // ESTE es el “cada vez que abra la app”:
         vm.comprobarRecordatorio(bearer);
     }
 
@@ -219,6 +244,29 @@ public class MainActivity extends AppCompatActivity {
         });
 
         vm.getLogoutEvent().observe(this, e -> {
+            if (e == null) return;
+            Boolean must = e.getContentIfNotHandled();
+            if (must != null && must) irALogin();
+        });
+    }
+
+    private void observarIncidenciasVM() {
+        ivm.getToastEvent().observe(this, e -> {
+            if (e == null) return;
+            String msg = e.getContentIfNotHandled();
+            if (msg != null) {
+                boolean ok = !msg.toUpperCase().contains("ERROR");
+                incidenciaHelper.mostrarToastPop(msg, ok);
+            }
+        });
+
+        ivm.getHistorialEvent().observe(this, e -> {
+            if (e == null) return;
+            List<IncidenciaResponse> lista = e.getContentIfNotHandled();
+            if (lista != null) incidenciaHelper.mostrarDialogoHistorial(lista);
+        });
+
+        ivm.getLogoutEvent().observe(this, e -> {
             if (e == null) return;
             Boolean must = e.getContentIfNotHandled();
             if (must != null && must) irALogin();
@@ -285,10 +333,7 @@ public class MainActivity extends AppCompatActivity {
                     public void onSuccess(Location location) {
                         if (location != null) {
                             String token = sessionManager.getAuthToken();
-                            if (token == null) {
-                                irALogin();
-                                return;
-                            }
+                            if (token == null) { irALogin(); return; }
                             vm.fichar("Bearer " + token, location.getLatitude(), location.getLongitude());
                         } else {
                             mostrarToastPop("Activa el GPS", false);
@@ -371,7 +416,7 @@ public class MainActivity extends AppCompatActivity {
 
         android.app.PendingIntent pendingIntent = android.app.PendingIntent.getActivity(
                 this, 0, intent,
-                android.app.PendingIntent.FLAG_ONE_SHOT | android.app.PendingIntent.FLAG_IMMUTABLE
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE
         );
 
         androidx.core.app.NotificationCompat.Builder builder =

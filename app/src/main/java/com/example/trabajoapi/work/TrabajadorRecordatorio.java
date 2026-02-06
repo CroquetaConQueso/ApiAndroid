@@ -1,23 +1,23 @@
 package com.example.trabajoapi.work;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
 import com.example.trabajoapi.MainActivity;
-import com.example.trabajoapi.R;
 import com.example.trabajoapi.data.RecordatorioResponse;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
-
-import java.io.IOException;
 
 import retrofit2.Response;
 
@@ -33,7 +33,17 @@ public class TrabajadorRecordatorio extends Worker {
     @Override
     public Result doWork() {
         try {
-            SessionManager sm = new SessionManager(getApplicationContext());
+            Context ctx = getApplicationContext();
+
+            // Android 13+: si no hay permiso, no intentamos notificar
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    return Result.success();
+                }
+            }
+
+            SessionManager sm = new SessionManager(ctx);
             String auth = sm.getAuthToken();
             if (auth == null) return Result.success();
 
@@ -43,37 +53,24 @@ public class TrabajadorRecordatorio extends Worker {
                             .getRecordatorioFichaje("Bearer " + auth)
                             .execute();
 
-            // Backend: 204 = no recordatorio
             if (resp.code() == 204) return Result.success();
-
-            if (!resp.isSuccessful() || resp.body() == null) {
-                // 401/403/etc -> no reintentar infinito
-                return Result.success();
-            }
+            if (!resp.isSuccessful() || resp.body() == null) return Result.success();
 
             RecordatorioResponse r = resp.body();
-
-            // Si tienes campo "avisar" y viene a false, tampoco molestes
-            if (r.hasAvisarFlag() && !r.isAvisar()) return Result.success();
-
             String titulo = safe(r.getTitulo(), "Aviso");
             String mensaje = safe(r.getMensaje(), "");
 
             if (mensaje.trim().isEmpty()) return Result.success();
 
-            mostrarNotificacion(titulo, mensaje);
+            mostrarNotificacion(ctx, titulo, mensaje);
             return Result.success();
 
-        } catch (IOException e) {
-            // fallo temporal de red
-            return Result.retry();
         } catch (Exception e) {
-            return Result.success();
+            return Result.retry();
         }
     }
 
-    private void mostrarNotificacion(String titulo, String cuerpo) {
-        Context ctx = getApplicationContext();
+    private void mostrarNotificacion(Context ctx, String titulo, String cuerpo) {
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -92,7 +89,7 @@ public class TrabajadorRecordatorio extends Worker {
                 ctx,
                 0,
                 intent,
-                PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL_ID)

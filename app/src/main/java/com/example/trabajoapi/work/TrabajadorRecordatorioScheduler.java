@@ -12,9 +12,9 @@ import java.util.concurrent.TimeUnit;
 
 public final class TrabajadorRecordatorioScheduler {
 
-    private TrabajadorRecordatorioScheduler() {}
+    private static final String UNIQUE_NAME = "recordatorio_fichaje_bg";
 
-    private static final String UNIQUE_WORK_NAME = "trabajador_recordatorio_bg_v1";
+    private TrabajadorRecordatorioScheduler() { }
 
     public static void schedule(Context context) {
         Constraints constraints = new Constraints.Builder()
@@ -24,17 +24,17 @@ public final class TrabajadorRecordatorioScheduler {
         PeriodicWorkRequest req =
                 new PeriodicWorkRequest.Builder(TrabajadorRecordatorio.class, 15, TimeUnit.MINUTES)
                         .setConstraints(constraints)
-                        .addTag(UNIQUE_WORK_NAME)
                         .build();
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                UNIQUE_WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE, // si cambias algo, se actualiza
+                UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 req
         );
     }
 
     public static void cancel(Context context) {
-        WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME);
+        WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_NAME);
     }
 }
+
