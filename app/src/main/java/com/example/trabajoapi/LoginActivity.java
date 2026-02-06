@@ -11,7 +11,6 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.AppCompatButton; // Necesario para el nuevo botón
 
 import com.example.trabajoapi.data.LoginRequest;
 import com.example.trabajoapi.data.LoginResponse;
@@ -32,10 +31,7 @@ public class LoginActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 1. Ocultar la barra superior (ActionBar) para que el diseño amarillo luzca limpio
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().hide();
-        }
+        if (getSupportActionBar() != null) getSupportActionBar().hide();
 
         sessionManager = new SessionManager(this);
         if (sessionManager.getAuthToken() != null) {
@@ -45,28 +41,14 @@ public class LoginActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_login);
 
-        // 2. CAMBIO DE IDs: Deben coincidir con el nuevo activity_login.xml
-        etNif = findViewById(R.id.etNifLogin);      // Antes era etNif
-        etPassword = findViewById(R.id.etPassLogin); // Antes era etPassword
+        etNif = findViewById(R.id.etNifLogin);
+        etPassword = findViewById(R.id.etPassLogin);
 
-        // El botón ahora es un AppCompatButton en el XML
         View btnLogin = findViewById(R.id.btnLogin);
+        TextView tvForgotPassword = findViewById(R.id.tvForgot);
 
-        TextView tvForgotPassword = findViewById(R.id.tvForgot); // Antes tvForgotPassword
-
-        btnLogin.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                login();
-            }
-        });
-
-        tvForgotPassword.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mostrarDialogoRecuperacion();
-            }
-        });
+        btnLogin.setOnClickListener(v -> login());
+        tvForgotPassword.setOnClickListener(v -> mostrarDialogoRecuperacion());
     }
 
     private void login() {
@@ -93,6 +75,14 @@ public class LoginActivity extends AppCompatActivity {
                             Intent intent = new Intent(LoginActivity.this, MainActivity.class);
 
                             LoginResponse.Recordatorio r = loginData.getRecordatorio();
+                            if (r != null) {
+                                System.out.println("[ANDROID][LOGIN] recordatorio.avisar=" + r.isAvisar()
+                                        + " titulo=" + r.getTitulo()
+                                        + " mensaje=" + r.getMensaje());
+                            } else {
+                                System.out.println("[ANDROID][LOGIN] recordatorio=null");
+                            }
+
                             if (r != null && r.isAvisar()) {
                                 intent.putExtra("AVISO_TITULO", r.getTitulo());
                                 intent.putExtra("AVISO_MENSAJE", r.getMensaje());
@@ -112,36 +102,22 @@ public class LoginActivity extends AppCompatActivity {
                 });
     }
 
-
-
-
     private void mostrarDialogoRecuperacion() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("RECUPERAR CLAVE");
         builder.setMessage("Introduce tu Email registrado:");
 
         final EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS); // Optimizado para email
+        input.setInputType(InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
         input.setHint("usuario@empresa.com");
         builder.setView(input);
 
-        builder.setPositiveButton("ENVIAR", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                String identificador = input.getText().toString().trim();
-                if (!identificador.isEmpty()) {
-                    solicitarResetApi(identificador);
-                }
-            }
+        builder.setPositiveButton("ENVIAR", (dialog, which) -> {
+            String identificador = input.getText().toString().trim();
+            if (!identificador.isEmpty()) solicitarResetApi(identificador);
         });
 
-        builder.setNegativeButton("CANCELAR", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.cancel();
-            }
-        });
-
+        builder.setNegativeButton("CANCELAR", (dialog, which) -> dialog.cancel());
         builder.show();
     }
 
@@ -152,7 +128,6 @@ public class LoginActivity extends AppCompatActivity {
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
-                // Ajuste visual: Mensaje más claro
                 if (response.isSuccessful()) {
                     Toast.makeText(LoginActivity.this, "Correo enviado. Revisa tu bandeja.", Toast.LENGTH_LONG).show();
                 } else {
@@ -169,36 +144,8 @@ public class LoginActivity extends AppCompatActivity {
 
     private void irAMain() {
         Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-        // Flags para que no se pueda volver atrás al Login pulsando 'Atrás'
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
     }
-
-    private void mostrarNotificacionLocal(String titulo, String cuerpo) {
-        String channelId = "canal_fichajes";
-
-        android.app.NotificationManager notificationManager =
-                (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            android.app.NotificationChannel channel = new android.app.NotificationChannel(
-                    channelId,
-                    "Avisos de Fichaje",
-                    android.app.NotificationManager.IMPORTANCE_HIGH
-            );
-            notificationManager.createNotificationChannel(channel);
-        }
-
-        androidx.core.app.NotificationCompat.Builder builder =
-                new androidx.core.app.NotificationCompat.Builder(this, channelId)
-                        .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                        .setContentTitle(titulo)
-                        .setContentText(cuerpo)
-                        .setAutoCancel(true)
-                        .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH);
-
-        notificationManager.notify(1001, builder.build());
-    }
-
 }

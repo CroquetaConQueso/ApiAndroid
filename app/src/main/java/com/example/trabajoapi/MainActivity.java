@@ -26,11 +26,10 @@ import com.example.trabajoapi.data.ChangePasswordRequest;
 import com.example.trabajoapi.data.FichajeRequest;
 import com.example.trabajoapi.data.FichajeResponse;
 import com.example.trabajoapi.data.IncidenciaHelper;
-import com.example.trabajoapi.data.RecordatorioResponse; // Asegúrate de tener esta clase
+import com.example.trabajoapi.data.RecordatorioResponse;
 import com.example.trabajoapi.data.ResumenResponse;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
-
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
@@ -38,23 +37,28 @@ import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.button.MaterialButton;
 
 import java.util.List;
+
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int PERMISSION_REQUEST_CODE = 112;
+    private static final int PERMISSION_REQUEST_CODE = 112; // Notificaciones (Android 13+)
+    private static final int PERMISSION_ID = 44;            // GPS
+
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
-    private static final int PERMISSION_ID = 44;
     private IncidenciaHelper incidenciaHelper;
 
-    // Elementos de UI
     private MaterialButton btnFicharMain;
     private TextView tvHorasExtraValor;
     private TextView tvEstadoHoras;
     private boolean estaDentro = false;
+
+    // Aviso pendiente (si llega desde Login)
+    private String avisoTituloPendiente = null;
+    private String avisoMensajePendiente = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,21 +88,10 @@ public class MainActivity extends AppCompatActivity {
             checkPermissionsAndFichar();
         });
 
-        if (btnIncidencia != null) {
-            btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
-        }
-
-        if (btnHistorial != null) {
-            btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
-        }
-
-        if (btnMisFichajes != null) {
-            btnMisFichajes.setOnClickListener(v -> mostrarHistorialFichajes());
-        }
-
-        if (btnCambiarClave != null) {
-            btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
-        }
+        if (btnIncidencia != null) btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
+        if (btnHistorial != null) btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
+        if (btnMisFichajes != null) btnMisFichajes.setOnClickListener(v -> mostrarHistorialFichajes());
+        if (btnCambiarClave != null) btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
 
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
@@ -110,28 +103,28 @@ public class MainActivity extends AppCompatActivity {
         if (btnAdminPanel != null) {
             if (sessionManager.isAdmin()) {
                 btnAdminPanel.setVisibility(View.VISIBLE);
-                btnAdminPanel.setOnClickListener(v -> {
-                    Intent intent = new Intent(MainActivity.this, AdminActivity.class);
-                    startActivity(intent);
-                });
+                btnAdminPanel.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AdminActivity.class)));
             } else {
                 btnAdminPanel.setVisibility(View.GONE);
             }
         }
 
-        procesarAvisoLoginSiExiste();
+        // 1) Capturamos aviso que venga del Login (si existe)
+        prepararAvisoLoginSiExiste();
+
+        // 2) Pedimos permiso notificaciones (Android 13+)
+        pedirPermisosNotificaciones();
+
+        // 3) Si ya hay permiso, mostramos el aviso pendiente
+        intentarMostrarAvisoPendiente();
 
         enviarTokenFCM();
-        pedirPermisosNotificaciones();
     }
-
 
     @Override
     protected void onResume() {
         super.onResume();
         cargarDashboard();
-
-        // --- NUEVO: Comprobar si hay que avisar localmente ---
         comprobarRecordatorioFichaje();
     }
 
@@ -146,18 +139,70 @@ public class MainActivity extends AppCompatActivity {
                     public void onResponse(Call<RecordatorioResponse> call, Response<RecordatorioResponse> response) {
                         if (response.isSuccessful() && response.body() != null) {
                             RecordatorioResponse aviso = response.body();
-
                             if (aviso.isAvisar()) {
-                                // Mostrar Notificación LOCAL
-                                mostrarNotificacionLocal(aviso.getTitulo(), aviso.getMensaje());
+                                if (tienePermisoNotificaciones()) {
+                                    mostrarNotificacionLocal(aviso.getTitulo(), aviso.getMensaje());
+                                } else {
+                                    avisoTituloPendiente = aviso.getTitulo();
+                                    avisoMensajePendiente = aviso.getMensaje();
+                                    pedirPermisosNotificaciones();
+                                }
                             }
                         }
                     }
+
                     @Override
                     public void onFailure(Call<RecordatorioResponse> call, Throwable t) {
-                        // Fallo silencioso
+                        // Silencioso
                     }
                 });
+    }
+
+    private boolean tienePermisoNotificaciones() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
+    private void pedirPermisosNotificaciones() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (!tienePermisoNotificaciones()) {
+                ActivityCompat.requestPermissions(
+                        this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        PERMISSION_REQUEST_CODE
+                );
+            }
+        }
+    }
+
+    private void prepararAvisoLoginSiExiste() {
+        Intent i = getIntent();
+        if (i == null) return;
+
+        String titulo = i.getStringExtra("AVISO_TITULO");
+        String mensaje = i.getStringExtra("AVISO_MENSAJE");
+
+        if (titulo != null && mensaje != null) {
+            avisoTituloPendiente = titulo;
+            avisoMensajePendiente = mensaje;
+
+            i.removeExtra("AVISO_TITULO");
+            i.removeExtra("AVISO_MENSAJE");
+            setIntent(i);
+        }
+    }
+
+    private void intentarMostrarAvisoPendiente() {
+        if (avisoTituloPendiente == null || avisoMensajePendiente == null) return;
+
+        if (tienePermisoNotificaciones()) {
+            mostrarNotificacionLocal(avisoTituloPendiente, avisoMensajePendiente);
+            avisoTituloPendiente = null;
+            avisoMensajePendiente = null;
+        }
     }
 
     private void mostrarNotificacionLocal(String titulo, String cuerpo) {
@@ -184,7 +229,7 @@ public class MainActivity extends AppCompatActivity {
 
         androidx.core.app.NotificationCompat.Builder builder =
                 new androidx.core.app.NotificationCompat.Builder(this, channelId)
-                        .setSmallIcon(android.R.drawable.ic_dialog_info) // Cambia por tu icono R.drawable.ic_pop_error si quieres
+                        .setSmallIcon(android.R.drawable.ic_dialog_info)
                         .setContentTitle(titulo != null ? titulo : "Aviso")
                         .setContentText(cuerpo != null ? cuerpo : "")
                         .setAutoCancel(true)
@@ -194,7 +239,6 @@ public class MainActivity extends AppCompatActivity {
         notificationManager.notify(101, builder.build());
     }
 
-    // --- LÓGICA MOSTRAR LISTA DE FICHAJES ---
     private void mostrarHistorialFichajes() {
         String token = "Bearer " + sessionManager.getAuthToken();
         Call<List<FichajeResponse>> call = RetrofitClient.getInstance().getMyApi().obtenerHistorial(token);
@@ -217,10 +261,9 @@ public class MainActivity extends AppCompatActivity {
 
                             String rawFecha = f.getFechaHora();
                             String fechaLimpia = "Sin fecha";
-
                             if (rawFecha != null) {
                                 fechaLimpia = rawFecha.replace("T", " ");
-                                if(fechaLimpia.length() > 16) fechaLimpia = fechaLimpia.substring(0, 16);
+                                if (fechaLimpia.length() > 16) fechaLimpia = fechaLimpia.substring(0, 16);
                             }
 
                             items[i] = (f.getTipo() != null ? f.getTipo() : "REGISTRO") + "\n" + fechaLimpia;
@@ -234,6 +277,7 @@ public class MainActivity extends AppCompatActivity {
                     mostrarToastPop("Error al cargar historial", false);
                 }
             }
+
             @Override
             public void onFailure(Call<List<FichajeResponse>> call, Throwable t) {
                 mostrarToastPop("Error de conexión", false);
@@ -246,7 +290,6 @@ public class MainActivity extends AppCompatActivity {
         obtenerCalculoHorasExtra();
     }
 
-    // --- LÓGICA DE HORAS EXTRA ---
     private void obtenerCalculoHorasExtra() {
         String token = "Bearer " + sessionManager.getAuthToken();
         Call<ResumenResponse> call = RetrofitClient.getInstance().getMyApi().getResumen(token, null, null);
@@ -269,6 +312,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             }
+
             @Override
             public void onFailure(Call<ResumenResponse> call, Throwable t) {
                 tvHorasExtraValor.setText("--");
@@ -277,7 +321,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // --- LÓGICA DE FICHAJE ---
     private void consultarEstadoFichaje() {
         String token = "Bearer " + sessionManager.getAuthToken();
         Call<List<FichajeResponse>> call = RetrofitClient.getInstance().getMyApi().obtenerHistorial(token);
@@ -293,6 +336,7 @@ public class MainActivity extends AppCompatActivity {
                     irALogin();
                 }
             }
+
             @Override
             public void onFailure(Call<List<FichajeResponse>> call, Throwable t) {
                 btnFicharMain.setEnabled(true);
@@ -315,7 +359,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // --- PERMISOS Y GPS ---
     private void checkPermissionsAndFichar() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             obtenerUbicacionYFichar();
@@ -364,6 +407,7 @@ public class MainActivity extends AppCompatActivity {
                     consultarEstadoFichaje();
                 }
             }
+
             @Override
             public void onFailure(Call<FichajeResponse> call, Throwable t) {
                 mostrarToastPop("Error de red", false);
@@ -372,7 +416,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // --- UTILIDADES ---
     private void mostrarDialogoCambioPassword() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("CAMBIAR CONTRASEÑA");
@@ -392,22 +435,27 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(etNueva);
 
         builder.setView(layout);
-        builder.setPositiveButton("GUARDAR", (dialog, which) -> cambiarPasswordApi(etActual.getText().toString(), etNueva.getText().toString()));
+        builder.setPositiveButton("GUARDAR", (dialog, which) ->
+                cambiarPasswordApi(etActual.getText().toString(), etNueva.getText().toString())
+        );
         builder.setNegativeButton("CANCELAR", null);
         builder.show();
     }
 
     private void cambiarPasswordApi(String actual, String nueva) {
-        if(actual.isEmpty() || nueva.isEmpty()) return;
+        if (actual.isEmpty() || nueva.isEmpty()) return;
+
         String token = "Bearer " + sessionManager.getAuthToken();
         ChangePasswordRequest request = new ChangePasswordRequest(actual, nueva);
+
         RetrofitClient.getInstance().getMyApi().changePassword(token, request).enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 mostrarToastPop(response.isSuccessful() ? "Clave cambiada" : "Error al cambiar", response.isSuccessful());
             }
+
             @Override
-            public void onFailure(Call<Void> call, Throwable t) {}
+            public void onFailure(Call<Void> call, Throwable t) { }
         });
     }
 
@@ -418,6 +466,7 @@ public class MainActivity extends AppCompatActivity {
         text.setText(mensaje);
         ImageView icon = layout.findViewById(R.id.toastIcon);
         icon.setImageResource(esExito ? R.drawable.ic_pop_success : R.drawable.ic_pop_error);
+
         Toast toast = new Toast(getApplicationContext());
         toast.setDuration(Toast.LENGTH_SHORT);
         toast.setView(layout);
@@ -433,10 +482,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_ID && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            obtenerUbicacionYFichar();
-        } else {
-            btnFicharMain.setEnabled(true);
+
+        if (requestCode == PERMISSION_ID) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                obtenerUbicacionYFichar();
+            } else {
+                btnFicharMain.setEnabled(true);
+            }
+            return;
+        }
+
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                intentarMostrarAvisoPendiente();
+            }
         }
     }
 
@@ -448,15 +507,13 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
 
-                    // 1. Obtener el token nuevo
                     String tokenFCM = task.getResult();
                     System.out.println("Token FCM: " + tokenFCM);
 
-                    // 2. Preparar el envío
                     String authToken = "Bearer " + sessionManager.getAuthToken();
-                    com.example.trabajoapi.data.FcmTokenRequest request = new com.example.trabajoapi.data.FcmTokenRequest(tokenFCM);
+                    com.example.trabajoapi.data.FcmTokenRequest request =
+                            new com.example.trabajoapi.data.FcmTokenRequest(tokenFCM);
 
-                    // 3. Enviar al Backend
                     RetrofitClient.getInstance().getMyApi().saveFcmToken(authToken, request)
                             .enqueue(new Callback<Void>() {
                                 @Override
@@ -473,33 +530,4 @@ public class MainActivity extends AppCompatActivity {
                             });
                 });
     }
-
-    private void pedirPermisosNotificaciones() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, PERMISSION_REQUEST_CODE);
-            }
-        }
-    }
-
-    private void procesarAvisoLoginSiExiste() {
-        Intent i = getIntent();
-        if (i == null) return;
-
-        String titulo = i.getStringExtra("AVISO_TITULO");
-        String mensaje = i.getStringExtra("AVISO_MENSAJE");
-
-        if (titulo != null && mensaje != null) {
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle(titulo)
-                    .setMessage(mensaje)
-                    .setPositiveButton("OK", null)
-                    .show();
-
-            i.removeExtra("AVISO_TITULO");
-            i.removeExtra("AVISO_MENSAJE");
-            setIntent(i);
-        }
-    }
-
 }

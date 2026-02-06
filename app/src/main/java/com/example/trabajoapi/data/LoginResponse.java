@@ -30,6 +30,7 @@ public class LoginResponse {
     public Recordatorio getRecordatorio() { return recordatorio; }
 
     public static class Recordatorio {
+
         @SerializedName("avisar")
         private boolean avisar;
 
