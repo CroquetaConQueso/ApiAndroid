@@ -1,29 +1,36 @@
 package com.example.trabajoapi;
 
+import android.content.Intent;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.trabajoapi.data.RetrofitClient;
+import com.example.trabajoapi.data.FichajeResponse;
 import com.example.trabajoapi.data.SessionManager;
 import com.example.trabajoapi.data.TrabajadorResponse;
+import com.example.trabajoapi.data.repository.AdminRepository;
+import com.example.trabajoapi.ui.admin.empleados.AdminEmpleadosViewModel;
+import com.example.trabajoapi.ui.admin.empleados.AdminEmpleadosViewModelFactory;
 
 import java.util.List;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
 
 public class AdminEmpleadosActivity extends AppCompatActivity {
 
     private RecyclerView recyclerView;
     private ProgressBar progressBar;
     private SessionManager sessionManager;
+
+    private AdminEmpleadosViewModel vm;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,49 +42,121 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recyclerEmpleados);
         progressBar = findViewById(R.id.progressEmpleados);
 
-        // Botón Volver
         ImageView btnVolver = findViewById(R.id.btnVolverLista);
-        if (btnVolver != null) {
-            btnVolver.setOnClickListener(v -> finish());
-        }
+        if (btnVolver != null) btnVolver.setOnClickListener(v -> finish());
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        cargarEmpleados();
+        vm = new ViewModelProvider(
+                this,
+                new AdminEmpleadosViewModelFactory(new AdminRepository())
+        ).get(AdminEmpleadosViewModel.class);
+
+        observarVM();
+
+        String token = sessionManager.getAuthToken();
+        if (token == null) { irALogin(); return; }
+
+        progressBar.setVisibility(View.VISIBLE);
+        vm.cargarEmpleados("Bearer " + token);
     }
 
-    private void cargarEmpleados() {
-        String token = "Bearer " + sessionManager.getAuthToken();
-
-        RetrofitClient.getInstance().getMyApi().getEmpleados(token).enqueue(new Callback<List<TrabajadorResponse>>() {
-            @Override
-            public void onResponse(Call<List<TrabajadorResponse>> call, Response<List<TrabajadorResponse>> response) {
-                progressBar.setVisibility(View.GONE);
-
-                if (response.isSuccessful() && response.body() != null) {
-                    List<TrabajadorResponse> empleados = response.body();
-
-                    if (empleados.isEmpty()) {
-                        Toast.makeText(AdminEmpleadosActivity.this, "La lista está vacía", Toast.LENGTH_SHORT).show();
-                    } else {
-                        // Usamos el adaptador con listener
-                        EmpleadoAdapter adapter = new EmpleadoAdapter(empleados, empleado -> {
-                            // Aquí programaremos ver el detalle/fichajes
-                            Toast.makeText(AdminEmpleadosActivity.this, "Seleccionado: " + empleado.getNombre(), Toast.LENGTH_SHORT).show();
-                        });
-                        recyclerView.setAdapter(adapter);
-                    }
-                } else {
-                    // Si falla aquí, el servidor devuelve error (400, 500...)
-                    Toast.makeText(AdminEmpleadosActivity.this, "Error del servidor: " + response.code(), Toast.LENGTH_LONG).show();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<TrabajadorResponse>> call, Throwable t) {
-                progressBar.setVisibility(View.GONE);
-                Toast.makeText(AdminEmpleadosActivity.this, "Error de red: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
+    private void observarVM() {
+        vm.getLoading().observe(this, isLoading -> {
+            if (isLoading == null) return;
+            progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         });
+
+        vm.getEmpleados().observe(this, empleados -> {
+            if (empleados == null) return;
+            pintarLista(empleados);
+        });
+
+        vm.getToastEvent().observe(this, e -> {
+            if (e == null) return;
+            String msg = e.getContentIfNotHandled();
+            if (msg != null) mostrarToastPop(msg, !msg.toUpperCase().contains("ERROR"));
+        });
+
+        vm.getGoLoginEvent().observe(this, e -> {
+            if (e == null) return;
+            Boolean go = e.getContentIfNotHandled();
+            if (go != null && go) irALogin();
+        });
+
+        vm.getFichajesEmpleadoEvent().observe(this, e -> {
+            if (e == null) return;
+            AdminEmpleadosViewModel.EmpleadoFichajesUI ui = e.getContentIfNotHandled();
+            if (ui == null) return;
+            mostrarDialogoFichajesEmpleado(ui.getEmpleadoNombre(), ui.getFichajes());
+        });
+    }
+
+    private void pintarLista(List<TrabajadorResponse> empleados) {
+        EmpleadoAdapter adapter = new EmpleadoAdapter(empleados, empleado -> {
+            String token = sessionManager.getAuthToken();
+            if (token == null) { irALogin(); return; }
+
+            vm.cargarFichajesEmpleado(
+                    "Bearer " + token,
+                    empleado.getIdTrabajador(),
+                    empleado.getNombreCompleto()
+            );
+        });
+        recyclerView.setAdapter(adapter);
+    }
+
+    private void mostrarDialogoFichajesEmpleado(String nombreEmpleado, List<FichajeResponse> lista) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("FICHAJES — " + (nombreEmpleado != null ? nombreEmpleado : "Empleado"));
+
+        if (lista == null || lista.isEmpty()) {
+            builder.setMessage("Este empleado no tiene fichajes.");
+        } else {
+            String[] items = new String[lista.size()];
+            for (int i = 0; i < lista.size(); i++) {
+                FichajeResponse f = lista.get(i);
+
+                String rawFecha = f.getFechaHora();
+                String fechaLimpia = "Sin fecha";
+                if (rawFecha != null) {
+                    fechaLimpia = rawFecha.replace("T", " ");
+                    if (fechaLimpia.length() > 16) fechaLimpia = fechaLimpia.substring(0, 16);
+                }
+
+                String tipo = (f.getTipo() != null ? f.getTipo() : "REGISTRO");
+                items[i] = tipo + "\n" + fechaLimpia;
+            }
+            builder.setItems(items, null);
+        }
+
+        builder.setPositiveButton("CERRAR", null);
+        builder.show();
+    }
+
+    private void mostrarToastPop(String mensaje, boolean esExito) {
+        try {
+            LayoutInflater inflater = getLayoutInflater();
+            View layout = inflater.inflate(R.layout.layout_toast_pop, null);
+
+            TextView text = layout.findViewById(R.id.toastText);
+            text.setText(mensaje);
+
+            ImageView icon = layout.findViewById(R.id.toastIcon);
+            icon.setImageResource(esExito ? R.drawable.ic_pop_success : R.drawable.ic_pop_error);
+
+            Toast toast = new Toast(getApplicationContext());
+            toast.setDuration(Toast.LENGTH_SHORT);
+            toast.setView(layout);
+            toast.show();
+        } catch (Exception e) {
+            Toast.makeText(this, mensaje, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void irALogin() {
+        sessionManager.clearSession();
+        startActivity(new Intent(this, LoginActivity.class));
+        finish();
     }
 }

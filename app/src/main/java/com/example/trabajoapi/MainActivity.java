@@ -21,15 +21,21 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatButton;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
 
-import com.example.trabajoapi.data.ChangePasswordRequest;
-import com.example.trabajoapi.data.FichajeRequest;
 import com.example.trabajoapi.data.FichajeResponse;
-import com.example.trabajoapi.data.IncidenciaHelper;
 import com.example.trabajoapi.data.RecordatorioResponse;
-import com.example.trabajoapi.data.ResumenResponse;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
+import com.example.trabajoapi.data.IncidenciaHelper;
+import com.example.trabajoapi.data.IncidenciaResponse;
+import com.example.trabajoapi.data.repository.MainRepository;
+import com.example.trabajoapi.data.repository.IncidenciaRepository;
+import com.example.trabajoapi.ui.main.MainViewModel;
+import com.example.trabajoapi.ui.main.MainViewModelFactory;
+import com.example.trabajoapi.ui.incidencia.IncidenciaViewModel;
+import com.example.trabajoapi.ui.incidencia.IncidenciaViewModelFactory;
+
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
@@ -44,21 +50,25 @@ import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int PERMISSION_REQUEST_CODE = 112; // Notificaciones (Android 13+)
-    private static final int PERMISSION_ID = 44;            // GPS
+    private static final int PERMISSION_REQUEST_CODE = 112;
+    private static final int PERMISSION_ID = 44;
 
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
-    private IncidenciaHelper incidenciaHelper;
 
     private MaterialButton btnFicharMain;
     private TextView tvHorasExtraValor;
     private TextView tvEstadoHoras;
     private boolean estaDentro = false;
 
-    // Aviso pendiente (si llega desde Login)
     private String avisoTituloPendiente = null;
     private String avisoMensajePendiente = null;
+
+    private MainViewModel vm;
+
+    // Incidencias (MVVM)
+    private IncidenciaHelper incidenciaHelper;
+    private IncidenciaViewModel ivm;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,9 +77,20 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         sessionManager = new SessionManager(this);
-
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        incidenciaHelper = new IncidenciaHelper(this, RetrofitClient.getInstance().getMyApi(), sessionManager);
+
+        // Main VM
+        vm = new ViewModelProvider(
+                this,
+                new MainViewModelFactory(new MainRepository())
+        ).get(MainViewModel.class);
+
+        // Incidencias VM + helper UI-only
+        incidenciaHelper = new IncidenciaHelper(this);
+        ivm = new ViewModelProvider(
+                this,
+                new IncidenciaViewModelFactory(new IncidenciaRepository())
+        ).get(IncidenciaViewModel.class);
 
         btnFicharMain = findViewById(R.id.btnFicharMain);
         tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
@@ -88,10 +109,39 @@ public class MainActivity extends AppCompatActivity {
             checkPermissionsAndFichar();
         });
 
-        if (btnIncidencia != null) btnIncidencia.setOnClickListener(v -> incidenciaHelper.mostrarDialogoNuevaIncidencia());
-        if (btnHistorial != null) btnHistorial.setOnClickListener(v -> incidenciaHelper.mostrarHistorial());
-        if (btnMisFichajes != null) btnMisFichajes.setOnClickListener(v -> mostrarHistorialFichajes());
-        if (btnCambiarClave != null) btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
+        // Incidencias: UI dialog -> VM
+        if (btnIncidencia != null) {
+            btnIncidencia.setOnClickListener(v -> {
+                incidenciaHelper.mostrarDialogoNuevaIncidencia((tipo, inicio, fin, comentario) -> {
+                    String token = sessionManager.getAuthToken();
+                    if (token == null) { irALogin(); return; }
+                    ivm.crearIncidencia("Bearer " + token, tipo, inicio, fin, comentario);
+                });
+            });
+        }
+
+        if (btnHistorial != null) {
+            btnHistorial.setOnClickListener(v -> {
+                String token = sessionManager.getAuthToken();
+                if (token == null) { irALogin(); return; }
+                ivm.cargarHistorial("Bearer " + token);
+            });
+        }
+
+        if (btnMisFichajes != null) {
+            btnMisFichajes.setOnClickListener(v -> {
+                String token = sessionManager.getAuthToken();
+                if (token == null) {
+                    irALogin();
+                    return;
+                }
+                vm.pedirHistorialParaDialogo("Bearer " + token);
+            });
+        }
+
+        if (btnCambiarClave != null) {
+            btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
+        }
 
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
@@ -103,20 +153,20 @@ public class MainActivity extends AppCompatActivity {
         if (btnAdminPanel != null) {
             if (sessionManager.isAdmin()) {
                 btnAdminPanel.setVisibility(View.VISIBLE);
-                btnAdminPanel.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AdminActivity.class)));
+                btnAdminPanel.setOnClickListener(v ->
+                        startActivity(new Intent(MainActivity.this, AdminActivity.class))
+                );
             } else {
                 btnAdminPanel.setVisibility(View.GONE);
             }
         }
 
-        // 1) Capturamos aviso que venga del Login (si existe)
         prepararAvisoLoginSiExiste();
-
-        // 2) Pedimos permiso notificaciones (Android 13+)
         pedirPermisosNotificaciones();
-
-        // 3) Si ya hay permiso, mostramos el aviso pendiente
         intentarMostrarAvisoPendiente();
+
+        observarVM();
+        observarIncidenciasVM();
 
         enviarTokenFCM();
     }
@@ -124,37 +174,172 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        cargarDashboard();
-        comprobarRecordatorioFichaje();
+
+        String token = sessionManager.getAuthToken();
+        if (token == null) {
+            irALogin();
+            return;
+        }
+
+        String bearer = "Bearer " + token;
+        vm.cargarDashboard(bearer);
+        vm.comprobarRecordatorio(bearer);
     }
 
-    private void comprobarRecordatorioFichaje() {
-        String token = sessionManager.getAuthToken();
-        if (token == null) return;
+    private void observarVM() {
+        vm.getDentro().observe(this, this::actualizarBotonFichaje);
 
-        RetrofitClient.getInstance().getMyApi()
-                .getRecordatorioFichaje("Bearer " + token)
-                .enqueue(new Callback<RecordatorioResponse>() {
+        vm.getResumen().observe(this, r -> {
+            if (r == null) return;
+
+            double saldo = r.getSaldo();
+            if (saldo >= 0) {
+                tvHorasExtraValor.setText("+" + saldo + " h");
+                tvHorasExtraValor.setTextColor(ContextCompat.getColor(this, R.color.pop_green));
+                tvEstadoHoras.setText("TIENES HORAS EXTRA ACUMULADAS");
+            } else {
+                tvHorasExtraValor.setText(saldo + " h");
+                tvHorasExtraValor.setTextColor(ContextCompat.getColor(this, R.color.pop_red));
+                tvEstadoHoras.setText("DEBES HORAS A LA EMPRESA");
+            }
+        });
+
+        vm.getToastEvent().observe(this, e -> {
+            if (e == null) return;
+            String msg = e.getContentIfNotHandled();
+            if (msg != null) {
+                boolean ok = msg.contains("REGISTRADA") || msg.contains("Clave cambiada");
+                mostrarToastPop(msg, ok);
+            }
+        });
+
+        vm.getRecordatorioEvent().observe(this, e -> {
+            if (e == null) return;
+            RecordatorioResponse r = e.getContentIfNotHandled();
+            if (r == null) return;
+
+            if (tienePermisoNotificaciones()) {
+                mostrarNotificacionLocal(r.getTitulo(), r.getMensaje());
+            } else {
+                avisoTituloPendiente = r.getTitulo();
+                avisoMensajePendiente = r.getMensaje();
+                pedirPermisosNotificaciones();
+            }
+        });
+
+        vm.getHistorialDialogEvent().observe(this, e -> {
+            if (e == null) return;
+            List<FichajeResponse> lista = e.getContentIfNotHandled();
+            if (lista == null) return;
+            mostrarDialogoHistorialFichajes(lista);
+        });
+
+        vm.getLogoutEvent().observe(this, e -> {
+            if (e == null) return;
+            Boolean must = e.getContentIfNotHandled();
+            if (must != null && must) irALogin();
+        });
+    }
+
+    private void observarIncidenciasVM() {
+        ivm.getToastEvent().observe(this, e -> {
+            if (e == null) return;
+            String msg = e.getContentIfNotHandled();
+            if (msg != null) {
+                boolean ok = msg.contains("Solicitud") || msg.contains("Enviada") || msg.contains("¡Solicitud");
+                incidenciaHelper.mostrarToastPop(msg, ok);
+            }
+        });
+
+        ivm.getHistorialEvent().observe(this, e -> {
+            if (e == null) return;
+            List<IncidenciaResponse> lista = e.getContentIfNotHandled();
+            if (lista != null) incidenciaHelper.mostrarDialogoHistorial(lista);
+        });
+
+        ivm.getLogoutEvent().observe(this, e -> {
+            if (e == null) return;
+            Boolean must = e.getContentIfNotHandled();
+            if (must != null && must) irALogin();
+        });
+    }
+
+    private void mostrarDialogoHistorialFichajes(List<FichajeResponse> lista) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        builder.setTitle("MIS ÚLTIMOS FICHAJES");
+
+        if (lista.isEmpty()) {
+            builder.setMessage("No tienes registros de fichaje aún.");
+        } else {
+            String[] items = new String[lista.size()];
+            for (int i = 0; i < lista.size(); i++) {
+                FichajeResponse f = lista.get(i);
+
+                String rawFecha = f.getFechaHora();
+                String fechaLimpia = "Sin fecha";
+                if (rawFecha != null) {
+                    fechaLimpia = rawFecha.replace("T", " ");
+                    if (fechaLimpia.length() > 16) fechaLimpia = fechaLimpia.substring(0, 16);
+                }
+
+                items[i] = (f.getTipo() != null ? f.getTipo() : "REGISTRO") + "\n" + fechaLimpia;
+            }
+            builder.setItems(items, null);
+        }
+
+        builder.setPositiveButton("CERRAR", null);
+        builder.show();
+    }
+
+    private void actualizarBotonFichaje(boolean estoyDentro) {
+        this.estaDentro = estoyDentro;
+        btnFicharMain.setEnabled(true);
+
+        if (estoyDentro) {
+            btnFicharMain.setText("FICHAR\nSALIDA");
+            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_pink)));
+            btnFicharMain.setTextColor(ContextCompat.getColor(this, R.color.white));
+        } else {
+            btnFicharMain.setText("FICHAR\nENTRADA");
+            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_green)));
+            btnFicharMain.setTextColor(ContextCompat.getColor(this, R.color.black));
+        }
+    }
+
+    private void checkPermissionsAndFichar() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            obtenerUbicacionYFichar();
+        } else {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_ID);
+            btnFicharMain.setEnabled(true);
+        }
+    }
+
+    private void obtenerUbicacionYFichar() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
+
+        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
                     @Override
-                    public void onResponse(Call<RecordatorioResponse> call, Response<RecordatorioResponse> response) {
-                        if (response.isSuccessful() && response.body() != null) {
-                            RecordatorioResponse aviso = response.body();
-                            if (aviso.isAvisar()) {
-                                if (tienePermisoNotificaciones()) {
-                                    mostrarNotificacionLocal(aviso.getTitulo(), aviso.getMensaje());
-                                } else {
-                                    avisoTituloPendiente = aviso.getTitulo();
-                                    avisoMensajePendiente = aviso.getMensaje();
-                                    pedirPermisosNotificaciones();
-                                }
+                    public void onSuccess(Location location) {
+                        if (location != null) {
+                            String token = sessionManager.getAuthToken();
+                            if (token == null) {
+                                irALogin();
+                                return;
                             }
+                            vm.fichar("Bearer " + token, location.getLatitude(), location.getLongitude());
+                        } else {
+                            mostrarToastPop("Activa el GPS", false);
+                            String token = sessionManager.getAuthToken();
+                            if (token != null) vm.consultarEstadoFichaje("Bearer " + token);
                         }
                     }
-
-                    @Override
-                    public void onFailure(Call<RecordatorioResponse> call, Throwable t) {
-                        // Silencioso
-                    }
+                })
+                .addOnFailureListener(e -> {
+                    mostrarToastPop("Error GPS", false);
+                    String token = sessionManager.getAuthToken();
+                    if (token != null) vm.consultarEstadoFichaje("Bearer " + token);
                 });
     }
 
@@ -207,6 +392,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void mostrarNotificacionLocal(String titulo, String cuerpo) {
         String channelId = "canal_fichajes_local_v1";
+
         android.app.NotificationManager notificationManager =
                 (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
 
@@ -239,183 +425,6 @@ public class MainActivity extends AppCompatActivity {
         notificationManager.notify(101, builder.build());
     }
 
-    private void mostrarHistorialFichajes() {
-        String token = "Bearer " + sessionManager.getAuthToken();
-        Call<List<FichajeResponse>> call = RetrofitClient.getInstance().getMyApi().obtenerHistorial(token);
-
-        call.enqueue(new Callback<List<FichajeResponse>>() {
-            @Override
-            public void onResponse(Call<List<FichajeResponse>> call, Response<List<FichajeResponse>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    List<FichajeResponse> lista = response.body();
-
-                    AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-                    builder.setTitle("MIS ÚLTIMOS FICHAJES");
-
-                    if (lista.isEmpty()) {
-                        builder.setMessage("No tienes registros de fichaje aún.");
-                    } else {
-                        String[] items = new String[lista.size()];
-                        for (int i = 0; i < lista.size(); i++) {
-                            FichajeResponse f = lista.get(i);
-
-                            String rawFecha = f.getFechaHora();
-                            String fechaLimpia = "Sin fecha";
-                            if (rawFecha != null) {
-                                fechaLimpia = rawFecha.replace("T", " ");
-                                if (fechaLimpia.length() > 16) fechaLimpia = fechaLimpia.substring(0, 16);
-                            }
-
-                            items[i] = (f.getTipo() != null ? f.getTipo() : "REGISTRO") + "\n" + fechaLimpia;
-                        }
-                        builder.setItems(items, null);
-                    }
-
-                    builder.setPositiveButton("CERRAR", null);
-                    builder.show();
-                } else {
-                    mostrarToastPop("Error al cargar historial", false);
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<FichajeResponse>> call, Throwable t) {
-                mostrarToastPop("Error de conexión", false);
-            }
-        });
-    }
-
-    private void cargarDashboard() {
-        consultarEstadoFichaje();
-        obtenerCalculoHorasExtra();
-    }
-
-    private void obtenerCalculoHorasExtra() {
-        String token = "Bearer " + sessionManager.getAuthToken();
-        Call<ResumenResponse> call = RetrofitClient.getInstance().getMyApi().getResumen(token, null, null);
-
-        call.enqueue(new Callback<ResumenResponse>() {
-            @Override
-            public void onResponse(Call<ResumenResponse> call, Response<ResumenResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    ResumenResponse r = response.body();
-                    double saldo = r.getSaldo();
-
-                    if (saldo >= 0) {
-                        tvHorasExtraValor.setText("+" + saldo + " h");
-                        tvHorasExtraValor.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.pop_green));
-                        tvEstadoHoras.setText("TIENES HORAS EXTRA ACUMULADAS");
-                    } else {
-                        tvHorasExtraValor.setText(saldo + " h");
-                        tvHorasExtraValor.setTextColor(ContextCompat.getColor(MainActivity.this, R.color.pop_red));
-                        tvEstadoHoras.setText("DEBES HORAS A LA EMPRESA");
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Call<ResumenResponse> call, Throwable t) {
-                tvHorasExtraValor.setText("--");
-                tvEstadoHoras.setText("Error de conexión");
-            }
-        });
-    }
-
-    private void consultarEstadoFichaje() {
-        String token = "Bearer " + sessionManager.getAuthToken();
-        Call<List<FichajeResponse>> call = RetrofitClient.getInstance().getMyApi().obtenerHistorial(token);
-
-        call.enqueue(new Callback<List<FichajeResponse>>() {
-            @Override
-            public void onResponse(Call<List<FichajeResponse>> call, Response<List<FichajeResponse>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    List<FichajeResponse> historial = response.body();
-                    boolean dentro = !historial.isEmpty() && "ENTRADA".equalsIgnoreCase(historial.get(0).getTipo());
-                    actualizarBotonFichaje(dentro);
-                } else if (response.code() == 401) {
-                    irALogin();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<List<FichajeResponse>> call, Throwable t) {
-                btnFicharMain.setEnabled(true);
-            }
-        });
-    }
-
-    private void actualizarBotonFichaje(boolean estoyDentro) {
-        this.estaDentro = estoyDentro;
-        btnFicharMain.setEnabled(true);
-
-        if (estoyDentro) {
-            btnFicharMain.setText("FICHAR\nSALIDA");
-            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_pink)));
-            btnFicharMain.setTextColor(ContextCompat.getColor(this, R.color.white));
-        } else {
-            btnFicharMain.setText("FICHAR\nENTRADA");
-            btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_green)));
-            btnFicharMain.setTextColor(ContextCompat.getColor(this, R.color.black));
-        }
-    }
-
-    private void checkPermissionsAndFichar() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            obtenerUbicacionYFichar();
-        } else {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_ID);
-            btnFicharMain.setEnabled(true);
-        }
-    }
-
-    private void obtenerUbicacionYFichar() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
-
-        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
-                    @Override
-                    public void onSuccess(Location location) {
-                        if (location != null) {
-                            enviarFichaje(location.getLatitude(), location.getLongitude());
-                        } else {
-                            mostrarToastPop("Activa el GPS", false);
-                            consultarEstadoFichaje();
-                        }
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    mostrarToastPop("Error GPS", false);
-                    consultarEstadoFichaje();
-                });
-    }
-
-    private void enviarFichaje(double lat, double lon) {
-        String token = "Bearer " + sessionManager.getAuthToken();
-        FichajeRequest request = new FichajeRequest(lat, lon);
-        Call<FichajeResponse> call = RetrofitClient.getInstance().getMyApi().fichar(token, request);
-
-        call.enqueue(new Callback<FichajeResponse>() {
-            @Override
-            public void onResponse(Call<FichajeResponse> call, Response<FichajeResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    String tipo = response.body().getTipo();
-                    mostrarToastPop(tipo + " REGISTRADA", true);
-                    actualizarBotonFichaje(tipo.equalsIgnoreCase("ENTRADA"));
-                    obtenerCalculoHorasExtra();
-                } else {
-                    mostrarToastPop("Fichaje rechazado (Lejos)", false);
-                    consultarEstadoFichaje();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<FichajeResponse> call, Throwable t) {
-                mostrarToastPop("Error de red", false);
-                consultarEstadoFichaje();
-            }
-        });
-    }
-
     private void mostrarDialogoCambioPassword() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("CAMBIAR CONTRASEÑA");
@@ -435,28 +444,17 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(etNueva);
 
         builder.setView(layout);
-        builder.setPositiveButton("GUARDAR", (dialog, which) ->
-                cambiarPasswordApi(etActual.getText().toString(), etNueva.getText().toString())
-        );
+        builder.setPositiveButton("GUARDAR", (dialog, which) -> {
+            String actual = etActual.getText().toString();
+            String nueva = etNueva.getText().toString();
+
+            String token = sessionManager.getAuthToken();
+            if (token == null) return;
+
+            vm.cambiarPassword("Bearer " + token, actual, nueva);
+        });
         builder.setNegativeButton("CANCELAR", null);
         builder.show();
-    }
-
-    private void cambiarPasswordApi(String actual, String nueva) {
-        if (actual.isEmpty() || nueva.isEmpty()) return;
-
-        String token = "Bearer " + sessionManager.getAuthToken();
-        ChangePasswordRequest request = new ChangePasswordRequest(actual, nueva);
-
-        RetrofitClient.getInstance().getMyApi().changePassword(token, request).enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                mostrarToastPop(response.isSuccessful() ? "Clave cambiada" : "Error al cambiar", response.isSuccessful());
-            }
-
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) { }
-        });
     }
 
     private void mostrarToastPop(String mensaje, boolean esExito) {
@@ -502,31 +500,21 @@ public class MainActivity extends AppCompatActivity {
     private void enviarTokenFCM() {
         com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
                 .addOnCompleteListener(task -> {
-                    if (!task.isSuccessful()) {
-                        System.out.println("Fetching FCM registration token failed");
-                        return;
-                    }
+                    if (!task.isSuccessful()) return;
 
                     String tokenFCM = task.getResult();
-                    System.out.println("Token FCM: " + tokenFCM);
+                    String authToken = sessionManager.getAuthToken();
+                    if (authToken == null) return;
 
-                    String authToken = "Bearer " + sessionManager.getAuthToken();
+                    String bearer = "Bearer " + authToken;
+
                     com.example.trabajoapi.data.FcmTokenRequest request =
                             new com.example.trabajoapi.data.FcmTokenRequest(tokenFCM);
 
-                    RetrofitClient.getInstance().getMyApi().saveFcmToken(authToken, request)
+                    RetrofitClient.getInstance().getMyApi().saveFcmToken(bearer, request)
                             .enqueue(new Callback<Void>() {
-                                @Override
-                                public void onResponse(Call<Void> call, Response<Void> response) {
-                                    if (response.isSuccessful()) {
-                                        System.out.println("Token FCM guardado en servidor correctamente.");
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Call<Void> call, Throwable t) {
-                                    System.out.println("Error enviando token FCM: " + t.getMessage());
-                                }
+                                @Override public void onResponse(Call<Void> call, Response<Void> response) { }
+                                @Override public void onFailure(Call<Void> call, Throwable t) { }
                             });
                 });
     }
