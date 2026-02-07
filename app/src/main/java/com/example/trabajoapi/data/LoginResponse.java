@@ -18,17 +18,16 @@ public class LoginResponse {
     @SerializedName("id_empresa")
     private int idEmpresa;
 
-    // --- AGREGAR ESTO (Faltaba) ---
     @SerializedName("recordatorio")
     private RecordatorioResponse recordatorio;
 
-    // Getters
+    // Expone los datos de sesión que devuelve el backend tras autenticar.
     public String getAccessToken() { return accessToken; }
     public int getIdTrabajador() { return idTrabajador; }
     public String getNombre() { return nombre; }
     public String getRol() { return rol; }
     public int getIdEmpresa() { return idEmpresa; }
 
-    // --- AGREGAR EL GETTER ---
+    // Entrega el recordatorio opcional para mostrar avisos al entrar.
     public RecordatorioResponse getRecordatorio() { return recordatorio; }
 }

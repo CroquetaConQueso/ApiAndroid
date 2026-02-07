@@ -16,12 +16,12 @@ public class EmpleadoAdapter extends RecyclerView.Adapter<EmpleadoAdapter.ViewHo
     private List<TrabajadorResponse> lista;
     private OnItemClickListener listener;
 
-    // Interfaz para gestionar el click
+    // Permite reaccionar al click de un empleado desde la pantalla que use el adapter.
     public interface OnItemClickListener {
         void onItemClick(TrabajadorResponse empleado);
     }
 
-    // Constructor que pide la lista Y el listener
+    // Recibe la lista a pintar y el callback para el click.
     public EmpleadoAdapter(List<TrabajadorResponse> lista, OnItemClickListener listener) {
         this.lista = lista;
         this.listener = listener;
@@ -30,6 +30,7 @@ public class EmpleadoAdapter extends RecyclerView.Adapter<EmpleadoAdapter.ViewHo
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // Infla el item de empleado que se repetirá en la lista.
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_empleado, parent, false);
         return new ViewHolder(view);
@@ -45,14 +46,14 @@ public class EmpleadoAdapter extends RecyclerView.Adapter<EmpleadoAdapter.ViewHo
         String rol = item.getRol();
         holder.tvRol.setText(rol.toUpperCase());
 
-        // Colores según rol (Negro para Admin, Cyan para resto)
+        // Marca el rol con un fondo distinto para diferenciar administradores del resto.
         if (rol.equalsIgnoreCase("Administrador") || rol.contains("Admin") || rol.contains("admin")) {
             holder.tvRol.setBackgroundTintList(ColorStateList.valueOf(Color.BLACK));
         } else {
             holder.tvRol.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#00BCD4")));
         }
 
-        // Click en el elemento
+        // Propaga el click del item hacia fuera sin acoplar la lógica aquí.
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onItemClick(item);
         });
@@ -68,6 +69,7 @@ public class EmpleadoAdapter extends RecyclerView.Adapter<EmpleadoAdapter.ViewHo
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
+            // Mantiene referencias para reutilizar vistas al hacer scroll.
             tvNombre = itemView.findViewById(R.id.tvNombreEmpleado);
             tvNif = itemView.findViewById(R.id.tvNifEmpleado);
             tvRol = itemView.findViewById(R.id.tvRolEmpleado);

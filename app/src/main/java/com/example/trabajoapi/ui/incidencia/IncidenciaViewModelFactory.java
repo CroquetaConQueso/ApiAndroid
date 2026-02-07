@@ -10,10 +10,12 @@ public class IncidenciaViewModelFactory implements ViewModelProvider.Factory {
 
     private final IncidenciaRepository repo;
 
+    // Inyecta el repositorio para construir el VM de incidencias con sus dependencias.
     public IncidenciaViewModelFactory(IncidenciaRepository repo) {
         this.repo = repo;
     }
 
+    // Devuelve el VM correcto cuando se solicita desde la UI.
     @NonNull
     @Override
     public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {

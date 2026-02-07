@@ -4,7 +4,6 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
-import android.location.Location;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.LayoutInflater;
@@ -45,7 +44,6 @@ import com.example.trabajoapi.work.TrabajadorRecordatorio;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.button.MaterialButton;
 
 import java.util.List;
@@ -74,13 +72,12 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
 
     private MainViewModel vm;
 
-    // Incidencias (MVVM)
     private IncidenciaHelper incidenciaHelper;
     private IncidenciaViewModel ivm;
 
-    // NFC Controller
     private NfcFichajeController nfcController;
 
+    // Arranca la pantalla principal, enlaza UI con ViewModels y deja listo el flujo de fichaje.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -90,10 +87,9 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         sessionManager = new SessionManager(this);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // 1. INICIALIZAR CONTROLADOR NFC
+        // Prepara la escucha NFC para poder fichar con tarjeta.
         nfcController = new NfcFichajeController(this);
 
-        // ViewModels
         vm = new ViewModelProvider(
                 this,
                 new MainViewModelFactory(new MainRepository())
@@ -104,10 +100,9 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
                 new IncidenciaViewModelFactory(new IncidenciaRepository())
         ).get(IncidenciaViewModel.class);
 
-        // Helper UI
+        // Centraliza UI auxiliar para diálogos y mensajes relacionados con incidencias.
         incidenciaHelper = new IncidenciaHelper(this);
 
-        // UI refs
         btnFicharMain = findViewById(R.id.btnFicharMain);
         tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
         tvEstadoHoras = findViewById(R.id.tvEstadoHoras);
@@ -119,14 +114,14 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
         AppCompatButton btnAdminPanel = findViewById(R.id.btnAdminPanel);
 
-        // 2. CORRECCIÓN: Pasar 'null' para el fichaje manual
+        // Lanza el fichaje manual: bloquea el botón y valida permisos/ubicación.
         btnFicharMain.setOnClickListener(v -> {
             btnFicharMain.setEnabled(false);
             btnFicharMain.setText("...");
             checkPermissionsAndFichar(null);
         });
 
-        // Incidencia
+        // Abre el diálogo, valida datos y envía la solicitud al VM.
         if (btnIncidencia != null) {
             btnIncidencia.setOnClickListener(v -> {
                 incidenciaHelper.mostrarDialogoNuevaIncidencia((tipo, inicio, fin, comentario) -> {
@@ -137,7 +132,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
             });
         }
 
-        // Historial incidencias
+        // Pide el historial y lo muestra cuando llegue la respuesta.
         if (btnHistorial != null) {
             btnHistorial.setOnClickListener(v -> {
                 String token = sessionManager.getAuthToken();
@@ -146,7 +141,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
             });
         }
 
-        // Mis fichajes
+        // Pide el historial y muestra el diálogo.
         if (btnMisFichajes != null) {
             btnMisFichajes.setOnClickListener(v -> {
                 String token = sessionManager.getAuthToken();
@@ -155,12 +150,12 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
             });
         }
 
-        // Cambiar clave
+        // Abre el diálogo de validación y llama al VM.
         if (btnCambiarClave != null) {
             btnCambiarClave.setOnClickListener(v -> mostrarDialogoCambioPassword());
         }
 
-        // Logout
+        // Limpia sesión, detiene recordatorios y vuelve al login.
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
                 cancelRecordatorioWorker();
@@ -169,7 +164,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
             });
         }
 
-        // Admin panel
+        // Muestra el panel solo cuando el usuario tiene permisos.
         if (btnAdminPanel != null) {
             if (sessionManager.isAdmin()) {
                 btnAdminPanel.setVisibility(View.VISIBLE);
@@ -181,20 +176,25 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
             }
         }
 
+        // Recupera avisos y, si se puede, los muestra como notificación.
         prepararAvisoLoginSiExiste();
         pedirPermisosNotificaciones();
         intentarMostrarAvisoPendiente();
 
+        // Deja programado el recordatorio periódico cuando existe sesión.
         if (sessionManager.getAuthToken() != null) {
             scheduleRecordatorioWorker();
         }
 
+        // Conecta eventos del VM con la UI.
         observarVM();
         observarIncidenciasVM();
 
+        // Registra el token de notificaciones push en el backend.
         enviarTokenFCM();
     }
 
+    // Revalida sesión, reactiva NFC y refresca la información del dashboard.
     @Override
     protected void onResume() {
         super.onResume();
@@ -204,7 +204,6 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
             return;
         }
 
-        // Activar escucha NFC
         if (nfcController != null) nfcController.onResume(this);
 
         scheduleRecordatorioWorker();
@@ -213,17 +212,19 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         vm.comprobarRecordatorio(bearer);
     }
 
+    // Pausa la escucha NFC para evitar lecturas fuera de foco.
     @Override
     protected void onPause() {
         super.onPause();
-        // Pausar escucha NFC
         if (nfcController != null) nfcController.onPause(this);
     }
 
-    // --- MÉTODOS LISTENER NFC ---
+    // --- LISTENER NFC ---
+
     @Override
     public void onNfcReady(boolean enabled) {}
 
+    // Al detectar una tarjeta válida, inicia el flujo de fichaje con ubicación.
     @Override
     public void onTagValida(String nfcId) {
         runOnUiThread(() -> {
@@ -232,17 +233,21 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         });
     }
 
+    // Muestra el motivo cuando la lectura no cumple lo esperado.
     @Override
     public void onTagInvalida(String motivo, String payloadLeido) {
         runOnUiThread(() -> mostrarToastPop("Error NFC: " + motivo, false));
     }
 
+    // Informa de un fallo general de lectura NFC.
     @Override
     public void onNfcError(String motivo) {
         runOnUiThread(() -> mostrarToastPop("Error Lectura: " + motivo, false));
     }
 
-    // --- LÓGICA DE VM ---
+    // --- OBSERVERS ---
+
+    // Vincula estados y eventos del VM principal con cambios directos de la pantalla.
     private void observarVM() {
         vm.getDentro().observe(this, this::actualizarBotonFichaje);
 
@@ -297,6 +302,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         });
     }
 
+    // Refleja en la UI los resultados de creación y consulta del historial.
     private void observarIncidenciasVM() {
         ivm.getToastEvent().observe(this, e -> {
             if (e == null) return;
@@ -320,6 +326,9 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         });
     }
 
+    // --- UI ---
+
+    // Renderiza una lista simple con los últimos registros de fichaje.
     private void mostrarDialogoHistorialFichajes(List<FichajeResponse> lista) {
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         builder.setTitle("MIS ÚLTIMOS FICHAJES");
@@ -344,6 +353,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         builder.show();
     }
 
+    // Actualiza el botón según el estado que devuelve el VM (entrada/salida).
     private void actualizarBotonFichaje(boolean estoyDentro) {
         btnFicharMain.setEnabled(true);
         if (estoyDentro) {
@@ -357,6 +367,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         }
     }
 
+    // Comprueba permisos de ubicación y dispara la obtención de coordenadas.
     private void checkPermissionsAndFichar(String nfcCode) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
@@ -371,6 +382,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         }
     }
 
+    // Obtiene la ubicación y llama al endpoint correspondiente (manual o NFC).
     private void obtenerUbicacionYFichar(String nfcCode) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) return;
@@ -400,6 +412,8 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
                 });
     }
 
+    // --- NOTIFICACIONES ---
+
     private boolean tienePermisoNotificaciones() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -408,6 +422,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         return true;
     }
 
+    // Solicita permisos cuando el sistema lo requiere.
     private void pedirPermisosNotificaciones() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (!tienePermisoNotificaciones()) {
@@ -420,6 +435,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         }
     }
 
+    // Captura avisos recibidos por Intent y los deja preparados para mostrar.
     private void prepararAvisoLoginSiExiste() {
         Intent i = getIntent();
         if (i == null) return;
@@ -434,6 +450,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         }
     }
 
+    // Muestra el aviso en cuanto hay permisos disponibles.
     private void intentarMostrarAvisoPendiente() {
         if (avisoTituloPendiente == null || avisoMensajePendiente == null) return;
         if (tienePermisoNotificaciones()) {
@@ -443,6 +460,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         }
     }
 
+    // Construye una notificación local con canal propio y redirección a la app.
     private void mostrarNotificacionLocal(String titulo, String cuerpo) {
         String channelId = "canal_fichajes_local_v1";
         android.app.NotificationManager notificationManager =
@@ -477,6 +495,9 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         notificationManager.notify(101, builder.build());
     }
 
+    // --- CONTRASEÑA / TOAST / NAVEGACIÓN ---
+
+    // Pide la contraseña actual y la nueva, valida y lanza el cambio.
     private void mostrarDialogoCambioPassword() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("CAMBIAR CONTRASEÑA");
@@ -518,6 +539,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         builder.show();
     }
 
+    // Muestra un toast con estética propia y un icono según el resultado.
     private void mostrarToastPop(String mensaje, boolean esExito) {
         LayoutInflater inflater = getLayoutInflater();
         View layout = inflater.inflate(R.layout.layout_toast_pop, null);
@@ -532,6 +554,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         toast.show();
     }
 
+    // Cierra el ciclo de sesión y devuelve al inicio de autenticación.
     private void irALogin() {
         cancelRecordatorioWorker();
         sessionManager.clearSession();
@@ -539,6 +562,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         finish();
     }
 
+    // Resuelve permisos y continúa el flujo que estaba pendiente.
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -556,6 +580,9 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         }
     }
 
+    // --- FCM / WORKER ---
+
+    // Obtiene el token del dispositivo y lo envía para asociar notificaciones al usuario.
     private void enviarTokenFCM() {
         com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
                 .addOnCompleteListener(task -> {
@@ -578,6 +605,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
                 });
     }
 
+    // Programa el trabajo periódico para comprobar recordatorios sin duplicarlos.
     private void scheduleRecordatorioWorker() {
         Constraints constraints = new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -597,6 +625,7 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         );
     }
 
+    // Detiene el trabajo periódico cuando se cierra sesión o se sale de la app.
     private void cancelRecordatorioWorker() {
         WorkManager.getInstance(this).cancelUniqueWork(WORK_UNIQUE_NAME);
     }

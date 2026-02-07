@@ -30,10 +30,10 @@ public class HistorialViewModel extends ViewModel {
     public LiveData<List<FichajeResponse>> getFichajes() { return fichajes; }
     public LiveData<Event<String>> getToastEvent() { return toastEvent; }
 
+    // Carga el historial del usuario y expone progreso y resultado para la UI.
     public void cargarMisFichajes(String token) {
         loading.setValue(true);
 
-        // CORRECCIÓN: El repo ya gestiona el enqueue, pasamos el Callback directamente
         repo.obtenerHistorial(token, new Callback<List<FichajeResponse>>() {
             @Override
             public void onResponse(Call<List<FichajeResponse>> call, Response<List<FichajeResponse>> response) {

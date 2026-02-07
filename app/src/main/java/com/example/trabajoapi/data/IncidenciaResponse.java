@@ -18,7 +18,7 @@ public class IncidenciaResponse {
     @SerializedName("comentario_admin")
     private String comentarioAdmin;
 
-    // Getters necesarios
+    // Devuelve los campos listos para pintar en historial y detalle.
     public String getTipo() { return tipo; }
     public String getEstado() { return estado; }
     public String getFechaInicio() { return fechaInicio; }

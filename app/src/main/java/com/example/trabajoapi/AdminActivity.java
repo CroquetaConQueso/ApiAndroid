@@ -11,6 +11,7 @@ public class AdminActivity extends AppCompatActivity {
 
     private SessionManager sessionManager;
 
+    // Centraliza accesos rápidos a herramientas de administración.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -18,13 +19,13 @@ public class AdminActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
-        // 1. Botón Volver (Flecha atrás)
+        // Vuelve a la pantalla anterior sin modificar el estado.
         ImageView btnVolver = findViewById(R.id.btnVolverAdmin);
         if (btnVolver != null) {
             btnVolver.setOnClickListener(v -> finish());
         }
 
-        // 2. Botón Empleados (Lista -> Historial)
+        // Abre la lista de empleados para consultar sus historiales.
         View btnEmpleados = findViewById(R.id.cardEmpleados);
         if (btnEmpleados != null) {
             btnEmpleados.setOnClickListener(v ->
@@ -32,7 +33,7 @@ public class AdminActivity extends AppCompatActivity {
             );
         }
 
-        // 3. Botón Mapa (Configurar Ubicación)
+        // Abre el mapa para configurar ubicación y radio de fichaje.
         View btnMapa = findViewById(R.id.cardMapa);
         if (btnMapa != null) {
             btnMapa.setOnClickListener(v ->
@@ -40,8 +41,7 @@ public class AdminActivity extends AppCompatActivity {
             );
         }
 
-        // 4. NUEVO: Botón Configurar NFC (Torno Digital)
-        // Este ID 'btnConfigNfc' lo definimos en el XML activity_admin.xml
+        // Abre la pantalla para fijar la etiqueta NFC principal de la empresa.
         View btnConfigNfc = findViewById(R.id.btnConfigNfc);
         if (btnConfigNfc != null) {
             btnConfigNfc.setOnClickListener(v ->

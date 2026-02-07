@@ -34,6 +34,7 @@ public class IncidenciaHelper {
         this.context = context;
     }
 
+    // Abre el formulario de solicitud y devuelve los datos validados a través del listener.
     public void mostrarDialogoNuevaIncidencia(NuevaIncidenciaListener listener) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle("NUEVA INCIDENCIA");
@@ -43,7 +44,7 @@ public class IncidenciaHelper {
         layout.setPadding(50, 20, 50, 20);
 
         final Spinner spinnerTipo = new Spinner(context);
-        // IMPORTANTE: Valores en MAYÚSCULAS para cumplir con validate.OneOf del servidor
+        // Mantiene los valores en el formato esperado por el backend.
         String[] tipos = {"VACACIONES", "BAJA", "ASUNTOS PROPIOS", "HORAS EXTRA", "OLVIDO"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, tipos);
         spinnerTipo.setAdapter(adapter);
@@ -85,6 +86,7 @@ public class IncidenciaHelper {
         builder.show();
     }
 
+    // Lanza el selector de fecha y escribe el resultado en formato YYYY-MM-DD.
     private void mostrarCalendario(final EditText editText) {
         Calendar cal = Calendar.getInstance();
         int anio = cal.get(Calendar.YEAR);
@@ -99,8 +101,7 @@ public class IncidenciaHelper {
         dpd.show();
     }
 
-
-
+    // Muestra el historial en tarjetas, aplicando estilo según estado y comentario del admin.
     public void mostrarDialogoHistorial(List<IncidenciaResponse> lista) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle("MIS SOLICITUDES");
@@ -178,6 +179,7 @@ public class IncidenciaHelper {
         builder.show();
     }
 
+    // Muestra un toast con el estilo “pop” de la app y cae a toast normal si falla.
     public void mostrarToastPop(String mensaje, boolean esExito) {
         try {
             LayoutInflater inflater = LayoutInflater.from(context);

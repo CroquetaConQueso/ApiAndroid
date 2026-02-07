@@ -12,30 +12,26 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-/**
- * AuthRepository
- * Gestiona solo Login con credenciales y recuperación de contraseña.
- */
 public class AuthRepository {
 
     private final ApiService api;
 
     public AuthRepository(ApiService api) {
+        // Inyecta la API para poder testear/sustituir fácilmente el cliente.
         this.api = api;
     }
 
+    // Lanza el login y entrega la respuesta al callback que le pase el ViewModel.
     public void login(String nif, String password, Callback<LoginResponse> callback) {
         api.login(new LoginRequest(nif, password)).enqueue(callback);
     }
 
+    // Dispara la recuperación de contraseña y deja el resultado en el callback.
     public void resetPassword(String email, Callback<Void> callback) {
         api.resetPassword(new ResetPasswordRequest(email)).enqueue(callback);
     }
 
-    // ---------------------------
-    // LEGACY (por compatibilidad): LiveData<Result<...>>
-    // ---------------------------
-
+    // Mantiene el flujo antiguo basado en LiveData para compatibilidad con pantallas previas.
     public LiveData<Result<LoginResponse>> login(String nif, String password) {
         MutableLiveData<Result<LoginResponse>> live = new MutableLiveData<>();
         api.login(new LoginRequest(nif, password)).enqueue(new Callback<LoginResponse>() {
@@ -56,6 +52,7 @@ public class AuthRepository {
         return live;
     }
 
+    // Mantiene el flujo antiguo de recuperación usando LiveData para no romper dependencias.
     public LiveData<Result<Void>> resetPassword(String email) {
         MutableLiveData<Result<Void>> live = new MutableLiveData<>();
         api.resetPassword(new ResetPasswordRequest(email)).enqueue(new Callback<Void>() {
@@ -76,6 +73,7 @@ public class AuthRepository {
         return live;
     }
 
+    // Resultado simple para transportar éxito o error sin complicar el flujo legacy.
     public static class Result<T> {
         public final T data;
         public final String error;

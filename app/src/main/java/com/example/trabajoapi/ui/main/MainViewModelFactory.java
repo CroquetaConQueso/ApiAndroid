@@ -10,10 +10,12 @@ public class MainViewModelFactory implements ViewModelProvider.Factory {
 
     private final MainRepository repo;
 
+    // Inyecta el repositorio para construir el VM principal con sus dependencias.
     public MainViewModelFactory(MainRepository repo) {
         this.repo = repo;
     }
 
+    // Devuelve la instancia correcta del VM según la clase solicitada.
     @NonNull
     @Override
     @SuppressWarnings("unchecked")

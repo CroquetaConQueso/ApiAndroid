@@ -36,6 +36,7 @@ public class AdminMapaViewModel extends ViewModel {
     public LiveData<Event<Boolean>> getGoLoginEvent() { return goLoginEvent; }
     public LiveData<Event<Boolean>> getSavedEvent() { return savedEvent; }
 
+    // Pide al backend la configuración de empresa y la publica para que la UI la pinte.
     public void cargarConfiguracion(String bearer) {
         if (bearer == null || bearer.trim().isEmpty()) return;
 
@@ -71,6 +72,7 @@ public class AdminMapaViewModel extends ViewModel {
         });
     }
 
+    // Envía una nueva ubicación/radio y notifica a la UI si se guardó correctamente.
     public void guardarConfiguracion(String bearer, double lat, double lon, int radio) {
         if (bearer == null || bearer.trim().isEmpty()) return;
 
@@ -112,6 +114,7 @@ public class AdminMapaViewModel extends ViewModel {
         });
     }
 
+    // Cancela llamadas pendientes para no dejar peticiones activas al cerrar el VM.
     @Override
     protected void onCleared() {
         super.onCleared();

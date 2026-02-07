@@ -24,19 +24,18 @@ public class AdminVerFichajesActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private FichajeAdapter adapter;
 
-    // UI Elements
     private ProgressBar progressBar;
     private RecyclerView recyclerView;
     private TextView tvEmpty;
     private TextView tvNombreEmpleado;
 
+    // Carga y muestra el historial de fichajes de un empleado concreto.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // CAMBIO: Usamos el nuevo layout específico
         setContentView(R.layout.activity_admin_ver_fichajes);
 
-        // 1. Recibir datos
+        // Recibe el empleado objetivo y prepara la pantalla.
         int idEmpleado = getIntent().getIntExtra("ID_EMPLEADO", -1);
         String nombre = getIntent().getStringExtra("NOMBRE_EMPLEADO");
 
@@ -45,7 +44,6 @@ public class AdminVerFichajesActivity extends AppCompatActivity {
             return;
         }
 
-        // 2. Vincular Vistas
         sessionManager = new SessionManager(this);
         recyclerView = findViewById(R.id.recyclerFichajesAdmin);
         progressBar = findViewById(R.id.progressFichajesAdmin);
@@ -53,32 +51,31 @@ public class AdminVerFichajesActivity extends AppCompatActivity {
         tvNombreEmpleado = findViewById(R.id.tvNombreEmpleadoHistorial);
         ImageView btnVolver = findViewById(R.id.btnVolverHistorial);
 
-        // Configurar cabecera y botón volver
+        // Ajusta cabecera y deja el botón de volver listo.
         if (nombre != null) tvNombreEmpleado.setText(nombre);
         btnVolver.setOnClickListener(v -> finish());
 
-        // Configurar Lista
+        // Monta la lista con su adapter.
         adapter = new FichajeAdapter();
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
 
-        // 3. ViewModel
+        // Conecta el VM con el repositorio y enlaza observadores.
         AdminFichajesViewModelFactory factory = new AdminFichajesViewModelFactory(new AdminRepository());
         viewModel = new ViewModelProvider(this, factory).get(AdminFichajesViewModel.class);
 
-        // 4. Observar
         observarViewModel();
 
-        // 5. Cargar
+        // Dispara la carga con el token actual.
         viewModel.cargarHistorial("Bearer " + sessionManager.getAuthToken(), idEmpleado);
     }
 
+    // Refleja el estado de carga, renderiza resultados y gestiona el retorno al login si aplica.
     private void observarViewModel() {
         viewModel.getLoading().observe(this, isLoading -> {
             if (isLoading != null) {
                 progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
-                // Ocultamos la lista mientras carga para que se vea limpio
-                if(isLoading) {
+                if (isLoading) {
                     recyclerView.setVisibility(View.GONE);
                     tvEmpty.setVisibility(View.GONE);
                 }
@@ -86,7 +83,6 @@ public class AdminVerFichajesActivity extends AppCompatActivity {
         });
 
         viewModel.getFichajes().observe(this, lista -> {
-            // Cuando termina de cargar (loading false), mostramos lista o mensaje vacío
             if (lista != null && !lista.isEmpty()) {
                 recyclerView.setVisibility(View.VISIBLE);
                 tvEmpty.setVisibility(View.GONE);

@@ -19,14 +19,12 @@ public class AdminFichajesViewModel extends ViewModel {
 
     private final AdminRepository repo;
 
-
     private final MutableLiveData<Boolean> loading = new MutableLiveData<>(false);
     private final MutableLiveData<List<FichajeResponse>> fichajes = new MutableLiveData<>(Collections.emptyList());
     private final MutableLiveData<Event<String>> toastEvent = new MutableLiveData<>();
     private final MutableLiveData<Event<Boolean>> goLoginEvent = new MutableLiveData<>();
 
     private Call<List<FichajeResponse>> call;
-
 
     public AdminFichajesViewModel(AdminRepository repo) {
         this.repo = repo;
@@ -37,6 +35,7 @@ public class AdminFichajesViewModel extends ViewModel {
     public LiveData<Event<String>> getToastEvent() { return toastEvent; }
     public LiveData<Event<Boolean>> getGoLoginEvent() { return goLoginEvent; }
 
+    // Pide el historial de un empleado y publica lista, mensajes y estado de sesión.
     public void cargarHistorial(String token, int idEmpleado) {
         if (token == null) return;
 
@@ -75,6 +74,7 @@ public class AdminFichajesViewModel extends ViewModel {
         });
     }
 
+    // Limpia llamadas activas cuando el VM se destruye.
     @Override
     protected void onCleared() {
         super.onCleared();

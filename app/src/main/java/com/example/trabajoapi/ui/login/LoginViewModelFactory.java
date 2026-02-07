@@ -10,10 +10,12 @@ public class LoginViewModelFactory implements ViewModelProvider.Factory {
 
     private final AuthRepository repo;
 
+    // Inyecta el repositorio para construir el VM de login con sus dependencias.
     public LoginViewModelFactory(AuthRepository repo) {
         this.repo = repo;
     }
 
+    // Devuelve el VM correcto en función de la clase solicitada.
     @NonNull
     @Override
     @SuppressWarnings("unchecked")

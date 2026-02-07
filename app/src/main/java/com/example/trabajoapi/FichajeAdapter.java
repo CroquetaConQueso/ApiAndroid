@@ -16,6 +16,7 @@ public class FichajeAdapter extends RecyclerView.Adapter<FichajeAdapter.ViewHold
 
     private List<FichajeResponse> lista = new ArrayList<>();
 
+    // Sustituye la lista actual y refresca el RecyclerView.
     public void setLista(List<FichajeResponse> nuevaLista) {
         this.lista = nuevaLista;
         notifyDataSetChanged();
@@ -24,7 +25,7 @@ public class FichajeAdapter extends RecyclerView.Adapter<FichajeAdapter.ViewHold
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        // CORRECCIÓN: Usamos R.layout.item_fichaje, NO el de Android por defecto
+        // Infla el layout del item propio para renderizar cada fichaje.
         View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_fichaje, parent, false);
         return new ViewHolder(v);
     }
@@ -40,10 +41,11 @@ public class FichajeAdapter extends RecyclerView.Adapter<FichajeAdapter.ViewHold
 
         holder.tvTipo.setText(tipo);
         holder.tvFecha.setText(fecha);
-        // Formatear lat/lon a 4 decimales
+
+        // Muestra coordenadas de forma compacta para que no ensucie el item.
         holder.tvUbi.setText(String.format("Lat: %.4f, Lon: %.4f", item.getLatitud(), item.getLongitud()));
 
-        // Lógica visual
+        // Ajusta color e icono para distinguir entrada/salida de un vistazo.
         if ("ENTRADA".equals(tipo)) {
             holder.tvTipo.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.pop_green));
             holder.imgIcon.setImageResource(R.drawable.ic_fichaje_entrada);
@@ -62,7 +64,7 @@ public class FichajeAdapter extends RecyclerView.Adapter<FichajeAdapter.ViewHold
 
         ViewHolder(View v) {
             super(v);
-            // Estos IDs deben coincidir con tu item_fichaje.xml
+            // Enlaza las vistas del item para reutilizarlas sin buscar cada vez.
             tvTipo = v.findViewById(R.id.tvTipoFichaje);
             tvFecha = v.findViewById(R.id.tvFechaFichaje);
             tvUbi = v.findViewById(R.id.tvUbicacionFichaje);

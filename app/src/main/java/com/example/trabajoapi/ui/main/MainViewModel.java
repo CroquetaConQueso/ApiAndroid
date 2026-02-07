@@ -8,7 +8,6 @@ import androidx.lifecycle.ViewModel;
 import com.example.trabajoapi.data.ChangePasswordRequest;
 import com.example.trabajoapi.data.FichajeRequest;
 import com.example.trabajoapi.data.FichajeResponse;
-import com.example.trabajoapi.data.NfcFichajeRequest; // Asegúrate de tener este import
 import com.example.trabajoapi.data.RecordatorioResponse;
 import com.example.trabajoapi.data.ResumenResponse;
 import com.example.trabajoapi.data.common.Event;
@@ -49,11 +48,14 @@ public class MainViewModel extends ViewModel {
     public LiveData<Event<List<FichajeResponse>>> getHistorialDialogEvent() { return historialDialogEvent; }
 
     // --- INICIALIZACIÓN ---
+
+    // Refresca el estado de fichaje y el saldo de horas para pintar el dashboard.
     public void cargarDashboard(@NonNull String bearer) {
         consultarEstadoFichaje(bearer);
         obtenerHorasExtra(bearer);
     }
 
+    // Pide el historial para deducir si el usuario está dentro y mantener el estado sincronizado.
     public void consultarEstadoFichaje(@NonNull String bearer) {
         repo.obtenerHistorial(bearer, new Callback<List<FichajeResponse>>() {
             @Override
@@ -76,6 +78,7 @@ public class MainViewModel extends ViewModel {
         });
     }
 
+    // Recupera el resumen de horas para mostrar saldo positivo/negativo en pantalla.
     public void obtenerHorasExtra(@NonNull String bearer) {
         repo.getResumen(bearer, null, null, new Callback<ResumenResponse>() {
             @Override
@@ -91,7 +94,7 @@ public class MainViewModel extends ViewModel {
 
     // --- FICHAJES ---
 
-    // Fichaje Manual (Botón pantalla)
+    // Dispara un fichaje normal usando ubicación y deja al servidor decidir entrada/salida.
     public void fichar(@NonNull String bearer, double lat, double lon, String ignorarNfc) {
         FichajeRequest req = new FichajeRequest(lat, lon, null);
         repo.fichar(bearer, req, new Callback<FichajeResponse>() {
@@ -106,7 +109,7 @@ public class MainViewModel extends ViewModel {
         });
     }
 
-    // Fichaje NFC (Tarjeta)
+    // Dispara un fichaje usando NFC y ubicación para validar torno y distancia.
     public void realizarFichajeNfc(@NonNull String bearer, double lat, double lon, String nfcId) {
         repo.ficharPorNfc(bearer, lat, lon, nfcId, new Callback<FichajeResponse>() {
             @Override
@@ -120,17 +123,14 @@ public class MainViewModel extends ViewModel {
         });
     }
 
-    // --- GESTIÓN DE RESPUESTAS (Aquí está la magia) ---
-
+    // Interpreta la respuesta del servidor y deja el estado de la app coherente.
     private void manejarRespuestaFichaje(Response<FichajeResponse> response, String bearer, String origen) {
-        // 1. Caso NO AUTORIZADO (Token caducado)
         if (response.code() == 401) {
             toastEvent.postValue(new Event<>("Sesión caducada. Entra de nuevo."));
             logoutEvent.postValue(new Event<>(true));
             return;
         }
 
-        // 2. Caso ÉXITO (200 OK)
         if (response.isSuccessful() && response.body() != null) {
             String tipo = response.body().getTipo();
             String mensajeExito = "ENTRADA".equalsIgnoreCase(tipo) ? "¡Bienvenido! Has entrado." : "¡Hasta luego! Has salido.";
@@ -141,40 +141,31 @@ public class MainViewModel extends ViewModel {
             dentro.postValue(dentroNow);
             obtenerHorasExtra(bearer);
             consultarEstadoFichaje(bearer);
-        }
-        // 3. Caso ERROR (403, 400, 500...)
-        else {
+        } else {
             String mensajeAmigable = analizarErrorServer(response);
             toastEvent.postValue(new Event<>(mensajeAmigable));
         }
     }
 
-    /**
-     * Esta función traduce el JSON feo del servidor a un mensaje bonito para humanos.
-     */
+    // Traduce la respuesta de error del servidor a mensajes cortos y entendibles.
     private String analizarErrorServer(Response<?> response) {
         try {
-            // 1. Obtener el JSON crudo del error
             String errorJson = response.errorBody() != null ? response.errorBody().string() : "";
 
-            // 2. Intentar sacar el campo "message" o "status"
             String mensajeOriginal = "";
             try {
                 JSONObject json = new JSONObject(errorJson);
                 if (json.has("message")) mensajeOriginal = json.getString("message");
                 else if (json.has("status")) mensajeOriginal = json.getString("status");
             } catch (Exception e) {
-                // Si no es JSON, usamos el texto tal cual
                 mensajeOriginal = errorJson;
             }
 
-            // 3. DICCIONARIO DE TRADUCCIÓN (Palabras clave)
             String m = mensajeOriginal.toLowerCase();
 
             if (m.contains("lejos")) {
-                // Intentamos sacar los metros si vienen en el mensaje
                 String extra = "";
-                if(mensajeOriginal.contains("(")) {
+                if (mensajeOriginal.contains("(")) {
                     extra = " " + mensajeOriginal.substring(mensajeOriginal.indexOf("("));
                 }
                 return "📍 Estás demasiado lejos de la oficina" + extra;
@@ -192,12 +183,10 @@ public class MainViewModel extends ViewModel {
                 return "🛰️ Activa el GPS de alta precisión para fichar.";
             }
 
-            // Errores genéricos por código HTTP
             if (response.code() == 403) return "Acceso denegado.";
             if (response.code() == 404) return "Error: Endpoint no encontrado.";
             if (response.code() >= 500) return "Error del servidor. Inténtalo en 5 min.";
 
-            // Si no sabemos qué es, mostramos el mensaje original limpio (o un genérico)
             return !mensajeOriginal.isEmpty() ? mensajeOriginal : "Error desconocido al fichar.";
 
         } catch (Exception e) {
@@ -207,6 +196,7 @@ public class MainViewModel extends ViewModel {
 
     // --- OTROS MÉTODOS ---
 
+    // Comprueba si existe un aviso pendiente y lo emite como evento de UI.
     public void comprobarRecordatorio(@NonNull String bearer) {
         repo.getRecordatorio(bearer, new Callback<RecordatorioResponse>() {
             @Override
@@ -221,6 +211,7 @@ public class MainViewModel extends ViewModel {
         });
     }
 
+    // Pide el historial y lo empaqueta como evento para mostrar en un diálogo.
     public void pedirHistorialParaDialogo(@NonNull String bearer) {
         repo.obtenerHistorial(bearer, new Callback<List<FichajeResponse>>() {
             @Override
@@ -238,6 +229,7 @@ public class MainViewModel extends ViewModel {
         });
     }
 
+    // Valida y envía el cambio de contraseña, informando con un mensaje de resultado.
     public void cambiarPassword(@NonNull String bearer, @NonNull String actual, @NonNull String nueva) {
         ChangePasswordRequest req = new ChangePasswordRequest(actual, nueva);
         repo.changePassword(bearer, req, new Callback<Void>() {

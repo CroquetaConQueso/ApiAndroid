@@ -29,13 +29,14 @@ public class TrabajadorRecordatorio extends Worker {
         super(context, params);
     }
 
+    // Consulta el backend y lanza una notificación si hay un recordatorio pendiente.
     @NonNull
     @Override
     public Result doWork() {
         try {
             Context ctx = getApplicationContext();
 
-            // Android 13+: si no hay permiso, no intentamos notificar
+            // Si el sistema exige permiso y no existe, se omite el aviso sin fallar el worker.
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
                         != PackageManager.PERMISSION_GRANTED) {
@@ -70,6 +71,7 @@ public class TrabajadorRecordatorio extends Worker {
         }
     }
 
+    // Construye la notificación con canal propio y navegación de vuelta a la app.
     private void mostrarNotificacion(Context ctx, String titulo, String cuerpo) {
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
 
@@ -104,6 +106,7 @@ public class TrabajadorRecordatorio extends Worker {
         nm.notify(501, b.build());
     }
 
+    // Normaliza strings para evitar nulos y valores vacíos en la notificación.
     private String safe(String v, String fallback) {
         if (v == null) return fallback;
         String s = v.trim();

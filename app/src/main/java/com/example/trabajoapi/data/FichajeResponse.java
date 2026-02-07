@@ -19,11 +19,8 @@ public class FichajeResponse {
     @SerializedName("longitud")
     private double longitud;
 
-    // Constructor vacío
-    public FichajeResponse() {
-    }
+    public FichajeResponse() { }
 
-    // Getters
     public int getId() {
         return id;
     }
@@ -31,7 +28,6 @@ public class FichajeResponse {
     public String getTipo() {
         return tipo;
     }
-
 
     public String getFechaHora() {
         return fechaHora;

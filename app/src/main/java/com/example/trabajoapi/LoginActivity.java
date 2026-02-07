@@ -31,6 +31,7 @@ public class LoginActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private LoginViewModel vm;
 
+    // Prepara la pantalla de acceso, enlaza la UI y conecta el flujo de autenticación.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -39,42 +40,44 @@ public class LoginActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
-        // OJO: estos IDs deben existir en tu activity_login.xml
+        // Vincula los campos del layout con las referencias de la Activity.
         etNif = findViewById(R.id.etNifLogin);
         etPass = findViewById(R.id.etPassLogin);
         btnLogin = findViewById(R.id.btnLogin);
         tvForgot = findViewById(R.id.tvForgot);
 
+        // Monta el VM con su repositorio para resolver las llamadas de login.
         AuthRepository repo = new AuthRepository(RetrofitClient.getInstance().getMyApi());
         vm = new ViewModelProvider(this, new LoginViewModelFactory(repo)).get(LoginViewModel.class);
 
+        // Engancha el estado del VM para reflejar carga, mensajes y éxito de login.
         observarVM();
 
+        // Lee campos, valida, y dispara el login bloqueando el botón durante la petición.
         btnLogin.setOnClickListener(v -> {
-            // 1. Primero obtenemos los textos y quitamos espacios
             String nif = etNif.getText() != null ? etNif.getText().toString().trim() : "";
             String pass = etPass.getText() != null ? etPass.getText().toString().trim() : "";
 
-            // 2. Validamos ANTES de bloquear el botón
             if (nif.isEmpty() || pass.isEmpty()) {
                 mostrarToastPop("Por favor, introduce usuario y contraseña", false);
                 return;
             }
 
-            // 3. Si todo está bien, ahora sí bloqueamos y llamamos
             btnLogin.setEnabled(false);
             btnLogin.setText("...");
             vm.login(nif, pass);
         });
 
+        // Abre el diálogo para solicitar el email y lanzar el reset.
         if (tvForgot != null) {
             tvForgot.setOnClickListener(v -> mostrarDialogoResetPassword());
         }
     }
 
+    // Refresca UI según eventos del VM: carga, mensajes y acceso correcto.
     private void observarVM() {
         vm.getLoading().observe(this, isLoading -> {
-            // Esta lógica reactiva el botón cuando el servidor termina (sea éxito o error)
+            // Reactiva el botón cuando termina la petición y restaura el texto.
             boolean loading = isLoading != null && isLoading;
             btnLogin.setEnabled(!loading);
             if (!loading) btnLogin.setText("ENTRAR");
@@ -88,6 +91,7 @@ public class LoginActivity extends AppCompatActivity {
             boolean ok = raw.startsWith("OK:");
             String msg = raw;
 
+            // Limpia el prefijo para mostrar un mensaje directo al usuario.
             if (raw.startsWith("OK:") || raw.startsWith("ERROR:")) {
                 msg = raw.substring(raw.indexOf(":") + 1).trim();
             }
@@ -100,11 +104,13 @@ public class LoginActivity extends AppCompatActivity {
             LoginResponse r = e.getContentIfNotHandled();
             if (r == null) return;
 
+            // Guarda sesión y salta al flujo principal limpiando el backstack.
             sessionManager.saveSession(r);
 
             Intent intent = new Intent(LoginActivity.this, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 
+            // Si viene un aviso con el login, lo envía para que se muestre al entrar.
             if (r.getRecordatorio() != null && r.getRecordatorio().isAvisar()) {
                 intent.putExtra("AVISO_TITULO", r.getRecordatorio().getTitulo());
                 intent.putExtra("AVISO_MENSAJE", r.getRecordatorio().getMensaje());
@@ -115,6 +121,7 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
+    // Pide un email y lanza la petición de recuperación a través del VM.
     private void mostrarDialogoResetPassword() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("RECUPERAR CONTRASEÑA");
@@ -134,6 +141,7 @@ public class LoginActivity extends AppCompatActivity {
         builder.show();
     }
 
+    // Muestra el toast personalizado y, si algo falla, cae al toast estándar.
     private void mostrarToastPop(String mensaje, boolean esExito) {
         try {
             LayoutInflater inflater = getLayoutInflater();

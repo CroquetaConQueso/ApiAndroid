@@ -25,6 +25,7 @@ public class NfcFichajeController implements NfcAdapter.ReaderCallback {
         this.listener = listener;
     }
 
+    // Activa el modo lectura NFC y notifica si el dispositivo lo soporta y está habilitado.
     public void onResume(Activity activity) {
         nfcAdapter = NfcAdapter.getDefaultAdapter(activity);
 
@@ -41,7 +42,6 @@ public class NfcFichajeController implements NfcAdapter.ReaderCallback {
         Bundle opts = new Bundle();
         opts.putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250);
 
-        // Habilitamos lectura de todas las tecnologías comunes para maximizar compatibilidad
         int flags = NfcAdapter.FLAG_READER_NFC_A |
                 NfcAdapter.FLAG_READER_NFC_B |
                 NfcAdapter.FLAG_READER_NFC_F |
@@ -50,6 +50,7 @@ public class NfcFichajeController implements NfcAdapter.ReaderCallback {
         nfcAdapter.enableReaderMode(activity, this, flags, opts);
     }
 
+    // Desactiva el modo lectura para evitar consumo extra y lecturas fuera de contexto.
     public void onPause(Activity activity) {
         if (nfcAdapter != null) {
             try {
@@ -58,15 +59,14 @@ public class NfcFichajeController implements NfcAdapter.ReaderCallback {
         }
     }
 
+    // Lee el UID, aplica antirrebote y lo entrega a la pantalla como identificador hex.
     @Override
     public void onTagDiscovered(Tag tag) {
-        // Evitamos lecturas múltiples muy seguidas (rebote)
         long now = SystemClock.elapsedRealtime();
         if (now - lastRead < DEBOUNCE_MS) return;
         lastRead = now;
 
         try {
-            // 1. Obtenemos el UID (Número de serie único de la tarjeta)
             byte[] idBytes = tag.getId();
 
             if (idBytes == null || idBytes.length == 0) {
@@ -74,7 +74,6 @@ public class NfcFichajeController implements NfcAdapter.ReaderCallback {
                 return;
             }
 
-            // 2. Lo convertimos a String Hexadecimal (ej: "04A35B...") para enviarlo al backend
             String nfcId = toHexString(idBytes);
 
             if (listener != null) {
@@ -86,6 +85,7 @@ public class NfcFichajeController implements NfcAdapter.ReaderCallback {
         }
     }
 
+    // Convierte el array de bytes a hexadecimal en mayúsculas para enviarlo al backend.
     private String toHexString(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {

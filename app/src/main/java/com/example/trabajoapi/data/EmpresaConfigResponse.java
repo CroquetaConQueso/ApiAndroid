@@ -5,7 +5,6 @@ import java.io.Serializable;
 
 public class EmpresaConfigResponse implements Serializable {
 
-    // Must match Python schema exactly: "latitud", "longitud", "radio"
     @SerializedName("latitud")
     private Double latitud;
 

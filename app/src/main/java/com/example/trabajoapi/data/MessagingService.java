@@ -12,12 +12,12 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
-// Importaciones necesarias
 import com.example.trabajoapi.MainActivity;
 import com.example.trabajoapi.R;
 
 public class MessagingService extends FirebaseMessagingService {
 
+    // Recibe push y extrae título/cuerpo tanto de notification como de data (según cómo llegue).
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
@@ -25,29 +25,28 @@ public class MessagingService extends FirebaseMessagingService {
         String titulo = null;
         String cuerpo = null;
 
-        // 1. Prioridad: Mensaje de Notificación (el estándar)
+        // Primero prueba el bloque estándar de notificación.
         if (remoteMessage.getNotification() != null) {
             titulo = remoteMessage.getNotification().getTitle();
             cuerpo = remoteMessage.getNotification().getBody();
         }
 
-        // 2. Respaldo: Mensaje de Datos (si el anterior falla o viene vacío)
-        // Esto soluciona el problema de que a veces no salte
+        // Si viene vacío, cae al payload de datos para no perder avisos.
         if (titulo == null && remoteMessage.getData().size() > 0) {
             Map<String, String> data = remoteMessage.getData();
             if (data.containsKey("titulo")) titulo = data.get("titulo");
             if (data.containsKey("mensaje")) cuerpo = data.get("mensaje");
-            // También probamos claves en inglés por si acaso
             if (data.containsKey("title")) titulo = data.get("title");
             if (data.containsKey("body")) cuerpo = data.get("body");
         }
 
-        // Si hemos conseguido sacar texto de algún lado, mostramos el aviso
+        // Con texto listo, levanta una notificación local.
         if (titulo != null && cuerpo != null) {
             mostrarNotificacion(titulo, cuerpo);
         }
     }
 
+    // Crea el canal si hace falta y muestra el aviso apuntando a MainActivity.
     private void mostrarNotificacion(String titulo, String cuerpo) {
         String channelId = "canal_fichajes";
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -69,7 +68,6 @@ public class MessagingService extends FirebaseMessagingService {
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
-                // CAMBIO IMPORTANTE: Usamos un icono de sistema para evitar cuadros blancos
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(titulo)
                 .setContentText(cuerpo)

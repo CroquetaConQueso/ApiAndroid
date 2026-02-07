@@ -13,6 +13,7 @@ public class NfcFichajeRequest {
     @SerializedName("longitud")
     private final Double longitud;
 
+    // Empaqueta el UID NFC y la ubicación para validación y registro en servidor.
     public NfcFichajeRequest(String nfcData, Double latitud, Double longitud) {
         this.nfcData = nfcData;
         this.latitud = latitud;

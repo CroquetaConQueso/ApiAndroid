@@ -34,6 +34,7 @@ public class IncidenciaViewModel extends ViewModel {
     public LiveData<Event<List<IncidenciaResponse>>> getHistorialEvent() { return historialEvent; }
     public LiveData<Event<Boolean>> getLogoutEvent() { return logoutEvent; }
 
+    // Envía una incidencia y devuelve un mensaje de confirmación o un error entendible.
     public void crearIncidencia(String bearer, String tipo, String inicio, String fin, String comentario) {
         if (bearer == null || bearer.trim().isEmpty()) return;
 
@@ -58,6 +59,7 @@ public class IncidenciaViewModel extends ViewModel {
         });
     }
 
+    // Pide el historial de incidencias del usuario y lo publica para el diálogo/lista.
     public void cargarHistorial(String bearer) {
         if (bearer == null || bearer.trim().isEmpty()) return;
 
@@ -82,6 +84,7 @@ public class IncidenciaViewModel extends ViewModel {
         });
     }
 
+    // Convierte códigos HTTP y cuerpos típicos en mensajes cortos y útiles para el usuario.
     private void handleError(Response<?> response) {
         if (response.code() == 401) {
             toastEvent.postValue(new Event<>("Tu sesión ha caducado"));
@@ -110,6 +113,7 @@ public class IncidenciaViewModel extends ViewModel {
         toastEvent.postValue(new Event<>(errorMsg));
     }
 
+    // Cancela llamadas pendientes para no dejar trabajo colgando al destruir el VM.
     @Override
     protected void onCleared() {
         super.onCleared();

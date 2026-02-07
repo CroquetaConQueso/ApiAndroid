@@ -32,6 +32,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
 
     private AdminEmpleadosViewModel vm;
 
+    // Muestra la lista de empleados y permite entrar a su historial.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -42,12 +43,13 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recyclerEmpleados);
         progressBar = findViewById(R.id.progressEmpleados);
 
+        // Vuelve a la pantalla anterior sin tocar estado.
         ImageView btnVolver = findViewById(R.id.btnVolverLista);
         if (btnVolver != null) btnVolver.setOnClickListener(v -> finish());
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        // Inicialización del ViewModel con su Factory y Repositorio
+        // Monta el VM que se encarga de pedir empleados y emitir eventos.
         vm = new ViewModelProvider(
                 this,
                 new AdminEmpleadosViewModelFactory(new AdminRepository())
@@ -65,6 +67,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         vm.cargarEmpleados("Bearer " + token);
     }
 
+    // Vincula carga, lista y mensajes del VM con la UI.
     private void observarVM() {
         vm.getLoading().observe(this, isLoading -> {
             if (isLoading == null) return;
@@ -88,8 +91,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
             if (go != null && go) irALogin();
         });
 
-        // Mantenemos este observador aunque ahora usemos Activity nueva,
-        // para no romper la estructura existente.
+        // Se mantiene para compatibilidad con el flujo anterior sin romper el VM.
         vm.getFichajesEmpleadoEvent().observe(this, e -> {
             if (e == null) return;
             AdminEmpleadosViewModel.EmpleadoFichajesUI ui = e.getContentIfNotHandled();
@@ -98,13 +100,12 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         });
     }
 
+    // Pinta la lista y delega el click para abrir el historial del empleado.
     private void pintarLista(List<TrabajadorResponse> empleados) {
-        // Al pulsar un empleado, navegamos a su historial en la NUEVA Activity
         EmpleadoAdapter adapter = new EmpleadoAdapter(empleados, empleado -> {
 
             Intent intent = new Intent(AdminEmpleadosActivity.this, AdminVerFichajesActivity.class);
 
-            // Pasamos los datos necesarios a la otra pantalla
             intent.putExtra("ID_EMPLEADO", empleado.getIdTrabajador());
             intent.putExtra("NOMBRE_EMPLEADO", empleado.getNombreCompleto());
 
@@ -114,7 +115,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
     }
 
-    // Función mantenida (Legacy)
+    // Mantiene el diálogo por si el VM aún emite este flujo en alguna ruta.
     private void mostrarDialogoFichajesEmpleado(String nombreEmpleado, List<FichajeResponse> lista) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("FICHAJES — " + (nombreEmpleado != null ? nombreEmpleado : "Empleado"));
@@ -143,6 +144,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         builder.show();
     }
 
+    // Muestra el toast personalizado y, si falla el layout, cae al toast estándar.
     private void mostrarToastPop(String mensaje, boolean esExito) {
         try {
             LayoutInflater inflater = getLayoutInflater();
@@ -163,6 +165,7 @@ public class AdminEmpleadosActivity extends AppCompatActivity {
         }
     }
 
+    // Cierra sesión y devuelve al login cuando el token ya no es válido.
     private void irALogin() {
         sessionManager.clearSession();
         startActivity(new Intent(this, LoginActivity.class));

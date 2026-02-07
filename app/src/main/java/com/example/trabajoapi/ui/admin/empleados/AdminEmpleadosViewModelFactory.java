@@ -10,10 +10,12 @@ public class AdminEmpleadosViewModelFactory implements ViewModelProvider.Factory
 
     private final AdminRepository repo;
 
+    // Inyecta el repositorio para construir el VM de empleados con sus dependencias.
     public AdminEmpleadosViewModelFactory(AdminRepository repo) {
         this.repo = repo;
     }
 
+    // Devuelve el VM correcto cuando la pantalla lo solicita.
     @NonNull
     @Override
     @SuppressWarnings("unchecked")

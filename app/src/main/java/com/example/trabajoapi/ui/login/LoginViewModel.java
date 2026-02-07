@@ -28,6 +28,7 @@ public class LoginViewModel extends ViewModel {
     public LiveData<Event<String>> getToastEvent() { return toastEvent; }
     public LiveData<Boolean> getLoading() { return loading; }
 
+    // Valida credenciales, activa loading y emite evento de éxito o mensaje de error.
     public void login(String username, String password) {
         if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
             toastEvent.setValue(new Event<>("Por favor, introduce usuario y contraseña"));
@@ -66,6 +67,7 @@ public class LoginViewModel extends ViewModel {
         });
     }
 
+    // Lanza la recuperación de contraseña y devuelve un mensaje simple de resultado.
     public void resetPassword(String email) {
         if (email == null || email.isEmpty()) {
             toastEvent.setValue(new Event<>("ERROR: Escribe tu email"));

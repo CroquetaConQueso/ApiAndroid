@@ -10,10 +10,12 @@ public class AdminMapaViewModelFactory implements ViewModelProvider.Factory {
 
     private final AdminRepository repo;
 
+    // Inyecta el repositorio para construir el VM del mapa con sus dependencias.
     public AdminMapaViewModelFactory(AdminRepository repo) {
         this.repo = repo;
     }
 
+    // Devuelve el VM correcto cuando la pantalla lo solicita.
     @NonNull
     @Override
     @SuppressWarnings("unchecked")

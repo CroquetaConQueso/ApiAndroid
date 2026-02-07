@@ -54,6 +54,7 @@ public class AdminEmpleadosViewModel extends ViewModel {
     public LiveData<Event<Boolean>> getGoLoginEvent() { return goLoginEvent; }
     public LiveData<Event<EmpleadoFichajesUI>> getFichajesEmpleadoEvent() { return fichajesEmpleadoEvent; }
 
+    // Carga la lista de empleados y la publica para que la pantalla la pinte.
     public void cargarEmpleados(String bearer) {
         if (bearer == null || bearer.trim().isEmpty()) return;
 
@@ -94,6 +95,7 @@ public class AdminEmpleadosViewModel extends ViewModel {
         });
     }
 
+    // Pide los fichajes de un empleado y emite un evento preparado para mostrar en UI.
     public void cargarFichajesEmpleado(String bearer, int idEmpleado, String nombreEmpleado) {
         if (bearer == null || bearer.trim().isEmpty()) return;
 
@@ -130,6 +132,7 @@ public class AdminEmpleadosViewModel extends ViewModel {
         });
     }
 
+    // Cancela llamadas pendientes para no dejar peticiones activas al cerrar el VM.
     @Override
     protected void onCleared() {
         super.onCleared();

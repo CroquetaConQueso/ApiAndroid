@@ -8,10 +8,12 @@ import com.example.trabajoapi.data.repository.AdminRepository;
 public class AdminFichajesViewModelFactory implements ViewModelProvider.Factory {
     private final AdminRepository repo;
 
+    // Inyecta el repositorio para construir el VM de fichajes de admin.
     public AdminFichajesViewModelFactory(AdminRepository repo) {
         this.repo = repo;
     }
 
+    // Devuelve el VM correcto para la pantalla de historial de un empleado.
     @NonNull
     @Override
     @SuppressWarnings("unchecked")

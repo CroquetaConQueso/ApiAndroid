@@ -13,7 +13,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 
-import com.example.trabajoapi.data.EmpresaConfigResponse;
 import com.example.trabajoapi.data.SessionManager;
 import com.example.trabajoapi.data.repository.AdminRepository;
 import com.example.trabajoapi.ui.admin.mapa.AdminMapaViewModel;
@@ -46,10 +45,12 @@ public class AdminMapaActivity extends AppCompatActivity {
     private Marker markerEmpresa;
     private Polygon circuloRadio;
 
+    // Permite elegir en el mapa la ubicación de la empresa y ajustar el radio de fichaje.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Inicializa la configuración de OSMdroid y fija el user agent de la app.
         Configuration.getInstance().load(
                 getApplicationContext(),
                 PreferenceManager.getDefaultSharedPreferences(getApplicationContext())
@@ -60,6 +61,7 @@ public class AdminMapaActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
+        // Conecta el VM para cargar y guardar la configuración de empresa.
         vm = new ViewModelProvider(
                 this,
                 new AdminMapaViewModelFactory(new AdminRepository())
@@ -67,23 +69,27 @@ public class AdminMapaActivity extends AppCompatActivity {
 
         tvRadioValor = findViewById(R.id.tvRadioValor);
 
+        // Prepara el mapa con zoom y controles táctiles.
         map = findViewById(R.id.map);
         map.setTileSource(TileSourceFactory.MAPNIK);
         map.setMultiTouchControls(true);
         map.getController().setZoom(18.0);
 
+        // Permite tocar el mapa para mover la ubicación seleccionada.
         MapEventsReceiver mReceive = new MapEventsReceiver() {
             @Override public boolean singleTapConfirmedHelper(GeoPoint p) { moverEmpresa(p); return true; }
             @Override public boolean longPressHelper(GeoPoint p) { moverEmpresa(p); return true; }
         };
         map.getOverlays().add(new MapEventsOverlay(mReceive));
 
+        // Ajusta el radio y refresca los elementos dibujados.
         sliderRadio = findViewById(R.id.sliderRadio);
         sliderRadio.addOnChangeListener((slider, value, fromUser) -> {
             radioActual = (int) value;
             actualizarVisuales();
         });
 
+        // Guarda la configuración actual si ya hay una ubicación seleccionada.
         findViewById(R.id.btnGuardarMapa).setOnClickListener(v -> {
             if (ubicacionActual == null) {
                 mostrarToastPop("Selecciona una ubicación primero", false);
@@ -99,20 +105,25 @@ public class AdminMapaActivity extends AppCompatActivity {
             );
         });
 
+        // Vuelve a la pantalla anterior sin modificar nada.
         findViewById(R.id.btnVolverMapa).setOnClickListener(v -> finish());
 
+        // Engancha eventos del VM para reflejar configuración, mensajes y navegación.
         observarVM();
 
         String token = sessionManager.getAuthToken();
         if (token == null) { irALogin(); return; }
 
+        // Carga la configuración existente para rellenar mapa y slider.
         vm.cargarConfiguracion("Bearer " + token);
     }
 
+    // Reacciona a la configuración cargada, mensajes del VM y eventos de guardado.
     private void observarVM() {
         vm.getConfig().observe(this, cfg -> {
             if (cfg == null) return;
 
+            // Si ya había ubicación, centra el mapa y pinta marcador/círculo.
             if (cfg.getLatitud() != null && cfg.getLongitud() != null) {
                 ubicacionActual = new GeoPoint(cfg.getLatitud(), cfg.getLongitud());
                 radioActual = cfg.getRadio();
@@ -121,6 +132,7 @@ public class AdminMapaActivity extends AppCompatActivity {
                 map.getController().setCenter(ubicacionActual);
                 actualizarVisuales();
             } else {
+                // Si no hay datos previos, deja una vista inicial y pide seleccionar punto.
                 mostrarToastPop("Sin ubicación previa. Toca el mapa.", false);
                 map.getController().setCenter(new GeoPoint(40.416775, -3.703790));
             }
@@ -145,11 +157,13 @@ public class AdminMapaActivity extends AppCompatActivity {
         });
     }
 
+    // Cambia el punto seleccionado y repinta el marcador y el radio.
     private void moverEmpresa(GeoPoint nuevoPunto) {
         ubicacionActual = nuevoPunto;
         actualizarVisuales();
     }
 
+    // Dibuja marcador y círculo del radio actual, y actualiza el texto del slider.
     private void actualizarVisuales() {
         if (map == null || ubicacionActual == null) return;
 
@@ -174,6 +188,7 @@ public class AdminMapaActivity extends AppCompatActivity {
         map.invalidate();
     }
 
+    // Muestra el toast personalizado y, si falla el layout, usa el toast estándar.
     private void mostrarToastPop(String mensaje, boolean esExito) {
         try {
             LayoutInflater inflater = getLayoutInflater();
@@ -193,12 +208,14 @@ public class AdminMapaActivity extends AppCompatActivity {
         }
     }
 
+    // Limpia la sesión y vuelve al login cuando el token ya no es válido.
     private void irALogin() {
         sessionManager.clearSession();
         startActivity(new Intent(this, LoginActivity.class));
         finish();
     }
 
+    // Mantiene el ciclo de vida del mapa sincronizado con la Activity.
     @Override
     public void onResume() {
         super.onResume();

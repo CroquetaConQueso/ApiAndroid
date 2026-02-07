@@ -16,6 +16,7 @@ public final class TrabajadorRecordatorioScheduler {
 
     private TrabajadorRecordatorioScheduler() { }
 
+    // Programa el worker periódico con red disponible y nombre único para evitar duplicados.
     public static void schedule(Context context) {
         Constraints constraints = new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -33,8 +34,8 @@ public final class TrabajadorRecordatorioScheduler {
         );
     }
 
+    // Cancela el worker periódico asociado al nombre único.
     public static void cancel(Context context) {
         WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_NAME);
     }
 }
-

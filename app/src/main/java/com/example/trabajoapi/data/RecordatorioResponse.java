@@ -13,10 +13,12 @@ public class RecordatorioResponse {
     @SerializedName("mensaje")
     private String mensaje;
 
+    // Permite distinguir entre “no viene el campo” y “viene false”.
     public boolean hasAvisarFlag() {
         return avisar != null;
     }
 
+    // Indica si el backend pide mostrar el recordatorio.
     public boolean isAvisar() {
         return avisar != null && avisar;
     }
