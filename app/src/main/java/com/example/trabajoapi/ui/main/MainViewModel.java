@@ -8,10 +8,13 @@ import androidx.lifecycle.ViewModel;
 import com.example.trabajoapi.data.ChangePasswordRequest;
 import com.example.trabajoapi.data.FichajeRequest;
 import com.example.trabajoapi.data.FichajeResponse;
+import com.example.trabajoapi.data.NfcFichajeRequest; // Asegúrate de tener este import
 import com.example.trabajoapi.data.RecordatorioResponse;
 import com.example.trabajoapi.data.ResumenResponse;
 import com.example.trabajoapi.data.common.Event;
 import com.example.trabajoapi.data.repository.MainRepository;
+
+import org.json.JSONObject;
 
 import java.util.List;
 
@@ -36,6 +39,7 @@ public class MainViewModel extends ViewModel {
         this.repo = repo;
     }
 
+    // --- GETTERS ---
     public LiveData<Boolean> getDentro() { return dentro; }
     public LiveData<ResumenResponse> getResumen() { return resumen; }
     public LiveData<List<FichajeResponse>> getHistorial() { return historial; }
@@ -44,6 +48,7 @@ public class MainViewModel extends ViewModel {
     public LiveData<Event<Boolean>> getLogoutEvent() { return logoutEvent; }
     public LiveData<Event<List<FichajeResponse>>> getHistorialDialogEvent() { return historialDialogEvent; }
 
+    // --- INICIALIZACIÓN ---
     public void cargarDashboard(@NonNull String bearer) {
         consultarEstadoFichaje(bearer);
         obtenerHorasExtra(bearer);
@@ -66,7 +71,7 @@ public class MainViewModel extends ViewModel {
             }
             @Override
             public void onFailure(@NonNull Call<List<FichajeResponse>> call, @NonNull Throwable t) {
-                toastEvent.postValue(new Event<>("Error de conexión"));
+                toastEvent.postValue(new Event<>("📡 Sin conexión al servidor"));
             }
         });
     }
@@ -75,10 +80,6 @@ public class MainViewModel extends ViewModel {
         repo.getResumen(bearer, null, null, new Callback<ResumenResponse>() {
             @Override
             public void onResponse(@NonNull Call<ResumenResponse> call, @NonNull Response<ResumenResponse> response) {
-                if (response.code() == 401) {
-                    logoutEvent.postValue(new Event<>(true));
-                    return;
-                }
                 if (response.isSuccessful() && response.body() != null) {
                     resumen.postValue(response.body());
                 }
@@ -88,11 +89,11 @@ public class MainViewModel extends ViewModel {
         });
     }
 
-    // MÉTODO A: Fichaje Manual (Botón pantalla)
-    public void fichar(@NonNull String bearer, double lat, double lon, String ignorarNfc) {
-        // En manual, ignoramos el NFC aunque el método antiguo lo aceptara
-        FichajeRequest req = new FichajeRequest(lat, lon, null);
+    // --- FICHAJES ---
 
+    // Fichaje Manual (Botón pantalla)
+    public void fichar(@NonNull String bearer, double lat, double lon, String ignorarNfc) {
+        FichajeRequest req = new FichajeRequest(lat, lon, null);
         repo.fichar(bearer, req, new Callback<FichajeResponse>() {
             @Override
             public void onResponse(@NonNull Call<FichajeResponse> call, @NonNull Response<FichajeResponse> response) {
@@ -100,12 +101,12 @@ public class MainViewModel extends ViewModel {
             }
             @Override
             public void onFailure(@NonNull Call<FichajeResponse> call, @NonNull Throwable t) {
-                toastEvent.postValue(new Event<>("Error de red"));
+                toastEvent.postValue(new Event<>("Error de red: Revisa tu conexión"));
             }
         });
     }
 
-    // MÉTODO B: Fichaje NFC (Tarjeta)
+    // Fichaje NFC (Tarjeta)
     public void realizarFichajeNfc(@NonNull String bearer, double lat, double lon, String nfcId) {
         repo.ficharPorNfc(bearer, lat, lon, nfcId, new Callback<FichajeResponse>() {
             @Override
@@ -119,37 +120,92 @@ public class MainViewModel extends ViewModel {
         });
     }
 
-    // Helper privado para no repetir código de respuesta
+    // --- GESTIÓN DE RESPUESTAS (Aquí está la magia) ---
+
     private void manejarRespuestaFichaje(Response<FichajeResponse> response, String bearer, String origen) {
+        // 1. Caso NO AUTORIZADO (Token caducado)
         if (response.code() == 401) {
+            toastEvent.postValue(new Event<>("Sesión caducada. Entra de nuevo."));
             logoutEvent.postValue(new Event<>(true));
             return;
         }
 
+        // 2. Caso ÉXITO (200 OK)
         if (response.isSuccessful() && response.body() != null) {
             String tipo = response.body().getTipo();
-            toastEvent.postValue(new Event<>(origen + ": " + tipo + " OK"));
+            String mensajeExito = "ENTRADA".equalsIgnoreCase(tipo) ? "¡Bienvenido! Has entrado." : "¡Hasta luego! Has salido.";
+
+            toastEvent.postValue(new Event<>(mensajeExito));
 
             boolean dentroNow = "ENTRADA".equalsIgnoreCase(tipo);
             dentro.postValue(dentroNow);
             obtenerHorasExtra(bearer);
             consultarEstadoFichaje(bearer);
-        } else {
-            String err = "Fichaje fallido";
-            try {
-                if (response.errorBody() != null) {
-                    // Aquí capturamos el mensaje REAL del servidor (ej: "Lejos de la empresa (200m)")
-                    err = response.errorBody().string();
-                }
-            } catch (Exception ignored) {}
-
-            // --- CORRECCIÓN AQUÍ ---
-            // Hemos eliminado el 'if' que sobrescribía el mensaje cuando era 403.
-            // Ahora verás el JSON o texto que envía Python.
-
-            toastEvent.postValue(new Event<>(err));
+        }
+        // 3. Caso ERROR (403, 400, 500...)
+        else {
+            String mensajeAmigable = analizarErrorServer(response);
+            toastEvent.postValue(new Event<>(mensajeAmigable));
         }
     }
+
+    /**
+     * Esta función traduce el JSON feo del servidor a un mensaje bonito para humanos.
+     */
+    private String analizarErrorServer(Response<?> response) {
+        try {
+            // 1. Obtener el JSON crudo del error
+            String errorJson = response.errorBody() != null ? response.errorBody().string() : "";
+
+            // 2. Intentar sacar el campo "message" o "status"
+            String mensajeOriginal = "";
+            try {
+                JSONObject json = new JSONObject(errorJson);
+                if (json.has("message")) mensajeOriginal = json.getString("message");
+                else if (json.has("status")) mensajeOriginal = json.getString("status");
+            } catch (Exception e) {
+                // Si no es JSON, usamos el texto tal cual
+                mensajeOriginal = errorJson;
+            }
+
+            // 3. DICCIONARIO DE TRADUCCIÓN (Palabras clave)
+            String m = mensajeOriginal.toLowerCase();
+
+            if (m.contains("lejos")) {
+                // Intentamos sacar los metros si vienen en el mensaje
+                String extra = "";
+                if(mensajeOriginal.contains("(")) {
+                    extra = " " + mensajeOriginal.substring(mensajeOriginal.indexOf("("));
+                }
+                return "📍 Estás demasiado lejos de la oficina" + extra;
+            }
+
+            if (m.contains("restringido") || m.contains("escanear el nfc")) {
+                return "🔒 Acceso Bloqueado: Debes fichar en el torno de entrada.";
+            }
+
+            if (m.contains("nfc incorrecto") || m.contains("no válido")) {
+                return "❌ Tarjeta desconocida. Usa tu credencial de empresa.";
+            }
+
+            if (m.contains("gps")) {
+                return "🛰️ Activa el GPS de alta precisión para fichar.";
+            }
+
+            // Errores genéricos por código HTTP
+            if (response.code() == 403) return "Acceso denegado.";
+            if (response.code() == 404) return "Error: Endpoint no encontrado.";
+            if (response.code() >= 500) return "Error del servidor. Inténtalo en 5 min.";
+
+            // Si no sabemos qué es, mostramos el mensaje original limpio (o un genérico)
+            return !mensajeOriginal.isEmpty() ? mensajeOriginal : "Error desconocido al fichar.";
+
+        } catch (Exception e) {
+            return "Error procesando la respuesta.";
+        }
+    }
+
+    // --- OTROS MÉTODOS ---
 
     public void comprobarRecordatorio(@NonNull String bearer) {
         repo.getRecordatorio(bearer, new Callback<RecordatorioResponse>() {

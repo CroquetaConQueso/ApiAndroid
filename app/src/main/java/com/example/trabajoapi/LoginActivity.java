@@ -51,12 +51,20 @@ public class LoginActivity extends AppCompatActivity {
         observarVM();
 
         btnLogin.setOnClickListener(v -> {
+            // 1. Primero obtenemos los textos y quitamos espacios
+            String nif = etNif.getText() != null ? etNif.getText().toString().trim() : "";
+            String pass = etPass.getText() != null ? etPass.getText().toString().trim() : "";
+
+            // 2. Validamos ANTES de bloquear el botón
+            if (nif.isEmpty() || pass.isEmpty()) {
+                mostrarToastPop("Por favor, introduce usuario y contraseña", false);
+                return;
+            }
+
+            // 3. Si todo está bien, ahora sí bloqueamos y llamamos
             btnLogin.setEnabled(false);
             btnLogin.setText("...");
-            vm.login(
-                    etNif.getText() != null ? etNif.getText().toString() : "",
-                    etPass.getText() != null ? etPass.getText().toString() : ""
-            );
+            vm.login(nif, pass);
         });
 
         if (tvForgot != null) {
@@ -66,6 +74,7 @@ public class LoginActivity extends AppCompatActivity {
 
     private void observarVM() {
         vm.getLoading().observe(this, isLoading -> {
+            // Esta lógica reactiva el botón cuando el servidor termina (sea éxito o error)
             boolean loading = isLoading != null && isLoading;
             btnLogin.setEnabled(!loading);
             if (!loading) btnLogin.setText("ENTRAR");
