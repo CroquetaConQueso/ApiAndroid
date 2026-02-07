@@ -2,25 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permisos base -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- Ubicación (fichaje por GPS) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
-    <!-- Notificaciones (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- WorkManager/arranques (si usas recordatorios periódicos) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
-    <!-- NFC (para login por NFC) -->
     <uses-permission android:name="android.permission.NFC" />
-    <uses-feature
-        android:name="android.hardware.nfc"
-        android:required="false" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -36,38 +25,25 @@
 
         <activity
             android:name=".LoginActivity"
-            android:exported="true"
-            android:launchMode="singleTop">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="false" />
+        <activity android:name=".AdminVerFichajesActivity"
+            android:exported="false"
+            android:parentActivityName=".AdminEmpleadosActivity"/>
 
-        <activity
-            android:name=".HistorialActivity"
-            android:exported="false" />
-
+        <activity android:name=".MainActivity" />
+        <activity android:name=".HistorialActivity" android:exported="false"/>
         <activity
             android:name=".AdminActivity"
             android:exported="false" />
 
-        <activity
-            android:name=".AdminMapaActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".AdminEmpleadosActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".AdminVerFichajesActivity"
-            android:exported="false"
-            android:parentActivityName=".AdminEmpleadosActivity" />
+        <activity android:name=".AdminMapaActivity" android:exported="false" />
+        <activity android:name=".AdminEmpleadosActivity" android:exported="false" />
 
         <service
             android:name=".data.MessagingService"
