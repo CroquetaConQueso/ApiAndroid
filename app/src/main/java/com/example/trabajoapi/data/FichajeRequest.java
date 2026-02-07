@@ -1,11 +1,25 @@
 package com.example.trabajoapi.data;
 
-public class FichajeRequest {
-    private double latitud;
-    private double longitud;
+import com.google.gson.annotations.SerializedName;
 
-    public FichajeRequest(double latitud, double longitud) {
+public class FichajeRequest {
+    private Double latitud;
+    private Double longitud;
+
+    @SerializedName("nfc_data")
+    private String nfcData;
+
+    // Constructor para fichaje manual (sin NFC)
+    public FichajeRequest(Double latitud, Double longitud) {
         this.latitud = latitud;
         this.longitud = longitud;
+        this.nfcData = null;
+    }
+
+    // Constructor para fichaje por NFC
+    public FichajeRequest(Double latitud, Double longitud, String nfcData) {
+        this.latitud = latitud;
+        this.longitud = longitud;
+        this.nfcData = nfcData;
     }
 }

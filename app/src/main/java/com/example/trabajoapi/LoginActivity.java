@@ -39,7 +39,12 @@ public class LoginActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
-        // OJO: estos IDs deben existir en tu activity_login.xml
+        // Si ya hay sesión, saltamos al Main (donde SÍ habrá NFC)
+        if (sessionManager.getAuthToken() != null) {
+            irAMain(null);
+            return;
+        }
+
         etNif = findViewById(R.id.etNifLogin);
         etPass = findViewById(R.id.etPassLogin);
         btnLogin = findViewById(R.id.btnLogin);
@@ -51,12 +56,7 @@ public class LoginActivity extends AppCompatActivity {
         observarVM();
 
         btnLogin.setOnClickListener(v -> {
-            btnLogin.setEnabled(false);
-            btnLogin.setText("...");
-            vm.login(
-                    etNif.getText() != null ? etNif.getText().toString() : "",
-                    etPass.getText() != null ? etPass.getText().toString() : ""
-            );
+            doLoginNormal();
         });
 
         if (tvForgot != null) {
@@ -64,11 +64,17 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
+    private void doLoginNormal() {
+        String u = etNif.getText() != null ? etNif.getText().toString() : "";
+        String p = etPass.getText() != null ? etPass.getText().toString() : "";
+        vm.login(u, p);
+    }
+
     private void observarVM() {
         vm.getLoading().observe(this, isLoading -> {
             boolean loading = isLoading != null && isLoading;
             btnLogin.setEnabled(!loading);
-            if (!loading) btnLogin.setText("ENTRAR");
+            btnLogin.setText(loading ? "..." : "ENTRAR");
         });
 
         vm.getToastEvent().observe(this, e -> {
@@ -76,13 +82,8 @@ public class LoginActivity extends AppCompatActivity {
             String raw = e.getContentIfNotHandled();
             if (raw == null) return;
 
-            boolean ok = raw.startsWith("OK:");
-            String msg = raw;
-
-            if (raw.startsWith("OK:") || raw.startsWith("ERROR:")) {
-                msg = raw.substring(raw.indexOf(":") + 1).trim();
-            }
-
+            boolean ok = !raw.startsWith("ERROR:");
+            String msg = raw.replace("ERROR:", "").replace("OK:", "").trim();
             mostrarToastPop(msg, ok);
         });
 
@@ -92,18 +93,21 @@ public class LoginActivity extends AppCompatActivity {
             if (r == null) return;
 
             sessionManager.saveSession(r);
-
-            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-
-            if (r.getRecordatorio() != null && r.getRecordatorio().isAvisar()) {
-                intent.putExtra("AVISO_TITULO", r.getRecordatorio().getTitulo());
-                intent.putExtra("AVISO_MENSAJE", r.getRecordatorio().getMensaje());
-            }
-
-            startActivity(intent);
-            finish();
+            irAMain(r);
         });
+    }
+
+    private void irAMain(LoginResponse r) {
+        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+        if (r != null && r.getRecordatorio() != null && r.getRecordatorio().isAvisar()) {
+            intent.putExtra("AVISO_TITULO", r.getRecordatorio().getTitulo());
+            intent.putExtra("AVISO_MENSAJE", r.getRecordatorio().getMensaje());
+        }
+
+        startActivity(intent);
+        finish();
     }
 
     private void mostrarDialogoResetPassword() {

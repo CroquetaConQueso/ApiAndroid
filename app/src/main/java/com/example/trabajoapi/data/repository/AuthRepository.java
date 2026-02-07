@@ -14,8 +14,7 @@ import retrofit2.Response;
 
 /**
  * AuthRepository
- * - Mantiene compatibilidad con el patrón antiguo (LiveData<Result<...>>)
- * - Añade métodos estilo "MainRepository" (enqueue con Callback) para MVVM limpio.
+ * Gestiona solo Login con credenciales y recuperación de contraseña.
  */
 public class AuthRepository {
 

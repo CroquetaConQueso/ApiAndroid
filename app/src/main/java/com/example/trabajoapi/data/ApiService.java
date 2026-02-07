@@ -17,10 +17,6 @@ public interface ApiService {
     @POST("api/login")
     Call<LoginResponse> login(@Body LoginRequest loginRequest);
 
-    // ✅ NUEVO: Login por NFC (UID / token de tarjeta)
-    @POST("api/login-nfc")
-    Call<LoginResponse> loginNfc(@Body NfcLoginRequest request);
-
     @POST("api/reset-password")
     Call<Void> resetPassword(@Body ResetPasswordRequest request);
 
@@ -32,6 +28,8 @@ public interface ApiService {
 
     // --- ZONA FICHAJES ---
 
+    // Este endpoint ahora sirve para fichaje manual Y para NFC
+    // (FichajeRequest incluye el campo opcional nfc_data)
     @POST("api/fichar")
     Call<FichajeResponse> fichar(
             @Header("Authorization") String token,
