@@ -36,6 +36,7 @@ import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.SessionManager;
 import com.example.trabajoapi.data.repository.IncidenciaRepository;
 import com.example.trabajoapi.data.repository.MainRepository;
+import com.example.trabajoapi.nfc.NfcFichajeController;
 import com.example.trabajoapi.ui.incidencia.IncidenciaViewModel;
 import com.example.trabajoapi.ui.incidencia.IncidenciaViewModelFactory;
 import com.example.trabajoapi.ui.main.MainViewModel;
@@ -54,7 +55,7 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements NfcFichajeController.Listener {
 
     private static final int PERMISSION_REQUEST_CODE = 112;
     private static final int PERMISSION_ID = 44;
@@ -77,6 +78,9 @@ public class MainActivity extends AppCompatActivity {
     private IncidenciaHelper incidenciaHelper;
     private IncidenciaViewModel ivm;
 
+    // NFC Controller
+    private NfcFichajeController nfcController;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -85,6 +89,9 @@ public class MainActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+        // 1. INICIALIZAR CONTROLADOR NFC
+        nfcController = new NfcFichajeController(this);
 
         // ViewModels
         vm = new ViewModelProvider(
@@ -97,7 +104,7 @@ public class MainActivity extends AppCompatActivity {
                 new IncidenciaViewModelFactory(new IncidenciaRepository())
         ).get(IncidenciaViewModel.class);
 
-        // Helper UI-only (OJO: tu helper solo acepta Context)
+        // Helper UI
         incidenciaHelper = new IncidenciaHelper(this);
 
         // UI refs
@@ -112,14 +119,14 @@ public class MainActivity extends AppCompatActivity {
         AppCompatButton btnCambiarClave = findViewById(R.id.btnCambiarClave);
         AppCompatButton btnAdminPanel = findViewById(R.id.btnAdminPanel);
 
-        // Fichar
+        // 2. CORRECCIÓN: Pasar 'null' para el fichaje manual
         btnFicharMain.setOnClickListener(v -> {
             btnFicharMain.setEnabled(false);
             btnFicharMain.setText("...");
-            checkPermissionsAndFichar();
+            checkPermissionsAndFichar(null);
         });
 
-        // Incidencia: ahora requiere listener
+        // Incidencia
         if (btnIncidencia != null) {
             btnIncidencia.setOnClickListener(v -> {
                 incidenciaHelper.mostrarDialogoNuevaIncidencia((tipo, inicio, fin, comentario) -> {
@@ -130,7 +137,7 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        // Historial incidencias: lo carga el VM y lo pinta el helper
+        // Historial incidencias
         if (btnHistorial != null) {
             btnHistorial.setOnClickListener(v -> {
                 String token = sessionManager.getAuthToken();
@@ -178,7 +185,6 @@ public class MainActivity extends AppCompatActivity {
         pedirPermisosNotificaciones();
         intentarMostrarAvisoPendiente();
 
-        // Si hay sesión, programamos worker BG
         if (sessionManager.getAuthToken() != null) {
             scheduleRecordatorioWorker();
         }
@@ -192,29 +198,56 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-
         String token = sessionManager.getAuthToken();
         if (token == null) {
             irALogin();
             return;
         }
 
-        // Re-asegurar worker BG en caso de reinstalación/limpieza
-        scheduleRecordatorioWorker();
+        // Activar escucha NFC
+        if (nfcController != null) nfcController.onResume(this);
 
+        scheduleRecordatorioWorker();
         String bearer = "Bearer " + token;
         vm.cargarDashboard(bearer);
-
-        // Esto es lo que quieres: recordatorio cada vez que abres la app
         vm.comprobarRecordatorio(bearer);
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Pausar escucha NFC
+        if (nfcController != null) nfcController.onPause(this);
+    }
+
+    // --- MÉTODOS LISTENER NFC ---
+    @Override
+    public void onNfcReady(boolean enabled) {}
+
+    @Override
+    public void onTagValida(String nfcId) {
+        runOnUiThread(() -> {
+            mostrarToastPop("Tarjeta detectada. Validando ubicación...", true);
+            checkPermissionsAndFichar(nfcId);
+        });
+    }
+
+    @Override
+    public void onTagInvalida(String motivo, String payloadLeido) {
+        runOnUiThread(() -> mostrarToastPop("Error NFC: " + motivo, false));
+    }
+
+    @Override
+    public void onNfcError(String motivo) {
+        runOnUiThread(() -> mostrarToastPop("Error Lectura: " + motivo, false));
+    }
+
+    // --- LÓGICA DE VM ---
     private void observarVM() {
         vm.getDentro().observe(this, this::actualizarBotonFichaje);
 
         vm.getResumen().observe(this, r -> {
             if (r == null) return;
-
             double saldo = r.getSaldo();
             if (saldo >= 0) {
                 tvHorasExtraValor.setText("+" + saldo + " h");
@@ -231,7 +264,7 @@ public class MainActivity extends AppCompatActivity {
             if (e == null) return;
             String msg = e.getContentIfNotHandled();
             if (msg != null) {
-                boolean ok = msg.contains("REGISTRADA") || msg.contains("Clave cambiada");
+                boolean ok = msg.toUpperCase().contains("EXITOSA") || msg.toUpperCase().contains("OK") || msg.contains("Clave cambiada");
                 mostrarToastPop(msg, ok);
             }
         });
@@ -297,26 +330,22 @@ public class MainActivity extends AppCompatActivity {
             String[] items = new String[lista.size()];
             for (int i = 0; i < lista.size(); i++) {
                 FichajeResponse f = lista.get(i);
-
                 String rawFecha = f.getFechaHora();
                 String fechaLimpia = "Sin fecha";
                 if (rawFecha != null) {
                     fechaLimpia = rawFecha.replace("T", " ");
                     if (fechaLimpia.length() > 16) fechaLimpia = fechaLimpia.substring(0, 16);
                 }
-
                 items[i] = (f.getTipo() != null ? f.getTipo() : "REGISTRO") + "\n" + fechaLimpia;
             }
             builder.setItems(items, null);
         }
-
         builder.setPositiveButton("CERRAR", null);
         builder.show();
     }
 
     private void actualizarBotonFichaje(boolean estoyDentro) {
         btnFicharMain.setEnabled(true);
-
         if (estoyDentro) {
             btnFicharMain.setText("FICHAR\nSALIDA");
             btnFicharMain.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.pop_pink)));
@@ -328,43 +357,46 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void checkPermissionsAndFichar() {
+    private void checkPermissionsAndFichar(String nfcCode) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
-            obtenerUbicacionYFichar();
+            obtenerUbicacionYFichar(nfcCode);
         } else {
             ActivityCompat.requestPermissions(
                     this,
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                     PERMISSION_ID
             );
-            btnFicharMain.setEnabled(true);
+            if (nfcCode == null) btnFicharMain.setEnabled(true);
         }
     }
 
-    private void obtenerUbicacionYFichar() {
+    private void obtenerUbicacionYFichar(String nfcCode) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) return;
 
         fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                .addOnSuccessListener(this, new OnSuccessListener<Location>() {
-                    @Override
-                    public void onSuccess(Location location) {
-                        String token = sessionManager.getAuthToken();
-                        if (token == null) { irALogin(); return; }
+                .addOnSuccessListener(this, location -> {
+                    String token = sessionManager.getAuthToken();
+                    if (token == null) { irALogin(); return; }
 
-                        if (location != null) {
-                            vm.fichar("Bearer " + token, location.getLatitude(), location.getLongitude());
+                    if (location != null) {
+                        if (nfcCode != null) {
+                            vm.realizarFichajeNfc("Bearer " + token, location.getLatitude(), location.getLongitude(), nfcCode);
                         } else {
-                            mostrarToastPop("Activa el GPS", false);
-                            vm.consultarEstadoFichaje("Bearer " + token);
+                            vm.fichar("Bearer " + token, location.getLatitude(), location.getLongitude(), null);
                         }
+                    } else {
+                        mostrarToastPop("Activa el GPS", false);
+                        vm.consultarEstadoFichaje("Bearer " + token);
+                        if (nfcCode == null) btnFicharMain.setEnabled(true);
                     }
                 })
                 .addOnFailureListener(e -> {
                     mostrarToastPop("Error GPS", false);
                     String token = sessionManager.getAuthToken();
                     if (token != null) vm.consultarEstadoFichaje("Bearer " + token);
+                    if (nfcCode == null) btnFicharMain.setEnabled(true);
                 });
     }
 
@@ -391,14 +423,11 @@ public class MainActivity extends AppCompatActivity {
     private void prepararAvisoLoginSiExiste() {
         Intent i = getIntent();
         if (i == null) return;
-
         String titulo = i.getStringExtra("AVISO_TITULO");
         String mensaje = i.getStringExtra("AVISO_MENSAJE");
-
         if (titulo != null && mensaje != null) {
             avisoTituloPendiente = titulo;
             avisoMensajePendiente = mensaje;
-
             i.removeExtra("AVISO_TITULO");
             i.removeExtra("AVISO_MENSAJE");
             setIntent(i);
@@ -407,7 +436,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void intentarMostrarAvisoPendiente() {
         if (avisoTituloPendiente == null || avisoMensajePendiente == null) return;
-
         if (tienePermisoNotificaciones()) {
             mostrarNotificacionLocal(avisoTituloPendiente, avisoMensajePendiente);
             avisoTituloPendiente = null;
@@ -417,7 +445,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void mostrarNotificacionLocal(String titulo, String cuerpo) {
         String channelId = "canal_fichajes_local_v1";
-
         android.app.NotificationManager notificationManager =
                 (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
 
@@ -478,10 +505,8 @@ public class MainActivity extends AppCompatActivity {
                 mostrarToastPop("Completa ambos campos", false);
                 return;
             }
-
-            // VALIDACIÓN CLAVE: Evita el 422 del servidor
             if (nueva.length() < 6) {
-                mostrarToastPop("La contraseña es muy corta (mínimo 6)", false);
+                mostrarToastPop("Mínimo 6 caracteres", false);
                 return;
             }
 
@@ -515,20 +540,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
         if (requestCode == PERMISSION_ID) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                obtenerUbicacionYFichar();
+                obtenerUbicacionYFichar(null);
             } else {
                 btnFicharMain.setEnabled(true);
             }
-            return;
         }
-
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 intentarMostrarAvisoPendiente();
@@ -557,8 +577,6 @@ public class MainActivity extends AppCompatActivity {
                             });
                 });
     }
-
-    // ---------- WORKMANAGER BG RECORDATORIO ----------
 
     private void scheduleRecordatorioWorker() {
         Constraints constraints = new Constraints.Builder()

@@ -30,7 +30,7 @@ public class LoginViewModel extends ViewModel {
 
     public void login(String username, String password) {
         if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
-            toastEvent.setValue(new Event<>("ERROR: Faltan datos"));
+            toastEvent.setValue(new Event<>("Por favor, introduce usuario y contraseña"));
             return;
         }
 
@@ -43,23 +43,25 @@ public class LoginViewModel extends ViewModel {
                 if (response.isSuccessful() && response.body() != null) {
                     loginOkEvent.setValue(new Event<>(response.body()));
                 } else {
-                    // Intentar leer el mensaje de error del servidor
-                    String errorMsg = "Credenciales incorrectas";
-                    try {
-                        if (response.errorBody() != null) {
-                            // Asumimos que el backend devuelve algo como {"message": "..."}
-                            // Si es texto plano, lo cogemos. Si es JSON complejo, aquí simplificamos.
-                            errorMsg = response.errorBody().string();
-                        }
-                    } catch (Exception ignored) {}
-                    toastEvent.setValue(new Event<>("ERROR: " + errorMsg));
+
+                    String errorMsg;
+                    if (response.code() == 401) {
+                        errorMsg = "Usuario o contraseña incorrectos";
+                    } else if (response.code() == 404) {
+                        errorMsg = "Usuario no encontrado";
+                    } else if (response.code() == 500) {
+                        errorMsg = "Error interno del servidor";
+                    } else {
+                        errorMsg = "Error de acceso (" + response.code() + ")";
+                    }
+                    toastEvent.setValue(new Event<>(errorMsg));
                 }
             }
 
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
                 loading.setValue(false);
-                toastEvent.setValue(new Event<>("ERROR: Fallo de conexión"));
+                toastEvent.setValue(new Event<>("Sin conexión a internet"));
             }
         });
     }

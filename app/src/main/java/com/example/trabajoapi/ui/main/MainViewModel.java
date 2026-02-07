@@ -57,16 +57,13 @@ public class MainViewModel extends ViewModel {
                     logoutEvent.postValue(new Event<>(true));
                     return;
                 }
-
                 if (response.isSuccessful() && response.body() != null) {
                     List<FichajeResponse> lista = response.body();
                     historial.postValue(lista);
-
                     boolean dentroNow = !lista.isEmpty() && "ENTRADA".equalsIgnoreCase(lista.get(0).getTipo());
                     dentro.postValue(dentroNow);
                 }
             }
-
             @Override
             public void onFailure(@NonNull Call<List<FichajeResponse>> call, @NonNull Throwable t) {
                 toastEvent.postValue(new Event<>("Error de conexión"));
@@ -86,68 +83,83 @@ public class MainViewModel extends ViewModel {
                     resumen.postValue(response.body());
                 }
             }
-
             @Override
-            public void onFailure(@NonNull Call<ResumenResponse> call, @NonNull Throwable t) {
-                toastEvent.postValue(new Event<>("Error de conexión"));
-            }
+            public void onFailure(@NonNull Call<ResumenResponse> call, @NonNull Throwable t) { }
         });
     }
 
-    public void fichar(@NonNull String bearer, double lat, double lon) {
-        FichajeRequest req = new FichajeRequest(lat, lon);
+    // MÉTODO A: Fichaje Manual (Botón pantalla)
+    public void fichar(@NonNull String bearer, double lat, double lon, String ignorarNfc) {
+        // En manual, ignoramos el NFC aunque el método antiguo lo aceptara
+        FichajeRequest req = new FichajeRequest(lat, lon, null);
 
         repo.fichar(bearer, req, new Callback<FichajeResponse>() {
             @Override
             public void onResponse(@NonNull Call<FichajeResponse> call, @NonNull Response<FichajeResponse> response) {
-                if (response.code() == 401) {
-                    logoutEvent.postValue(new Event<>(true));
-                    return;
-                }
-
-                if (response.isSuccessful() && response.body() != null) {
-                    String tipo = response.body().getTipo();
-                    toastEvent.postValue(new Event<>(tipo + " REGISTRADA"));
-
-                    boolean dentroNow = "ENTRADA".equalsIgnoreCase(tipo);
-                    dentro.postValue(dentroNow);
-
-                    obtenerHorasExtra(bearer);
-                    consultarEstadoFichaje(bearer);
-                } else {
-                    toastEvent.postValue(new Event<>("Fichaje rechazado (Lejos)"));
-                    consultarEstadoFichaje(bearer);
-                }
+                manejarRespuestaFichaje(response, bearer, "Manual");
             }
-
             @Override
             public void onFailure(@NonNull Call<FichajeResponse> call, @NonNull Throwable t) {
                 toastEvent.postValue(new Event<>("Error de red"));
-                consultarEstadoFichaje(bearer);
             }
         });
+    }
+
+    // MÉTODO B: Fichaje NFC (Tarjeta)
+    public void realizarFichajeNfc(@NonNull String bearer, double lat, double lon, String nfcId) {
+        repo.ficharPorNfc(bearer, lat, lon, nfcId, new Callback<FichajeResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<FichajeResponse> call, @NonNull Response<FichajeResponse> response) {
+                manejarRespuestaFichaje(response, bearer, "NFC");
+            }
+            @Override
+            public void onFailure(@NonNull Call<FichajeResponse> call, @NonNull Throwable t) {
+                toastEvent.postValue(new Event<>("Error conexión NFC"));
+            }
+        });
+    }
+
+    // Helper privado para no repetir código de respuesta
+    private void manejarRespuestaFichaje(Response<FichajeResponse> response, String bearer, String origen) {
+        if (response.code() == 401) {
+            logoutEvent.postValue(new Event<>(true));
+            return;
+        }
+
+        if (response.isSuccessful() && response.body() != null) {
+            String tipo = response.body().getTipo();
+            toastEvent.postValue(new Event<>(origen + ": " + tipo + " OK"));
+
+            boolean dentroNow = "ENTRADA".equalsIgnoreCase(tipo);
+            dentro.postValue(dentroNow);
+            obtenerHorasExtra(bearer);
+            consultarEstadoFichaje(bearer);
+        } else {
+            String err = "Fichaje fallido";
+            try {
+                if (response.errorBody() != null) {
+                    err = response.errorBody().string();
+                }
+            } catch (Exception ignored) {}
+
+            // Mensaje amigable si es por distancia o NFC incorrecto
+            if (response.code() == 403) err = "⛔ Acceso Denegado: ¿Estás en la empresa?";
+
+            toastEvent.postValue(new Event<>(err));
+        }
     }
 
     public void comprobarRecordatorio(@NonNull String bearer) {
         repo.getRecordatorio(bearer, new Callback<RecordatorioResponse>() {
             @Override
             public void onResponse(@NonNull Call<RecordatorioResponse> call, @NonNull Response<RecordatorioResponse> response) {
-                if (response.code() == 401) {
-                    logoutEvent.postValue(new Event<>(true));
-                    return;
-                }
-
                 if (response.isSuccessful() && response.body() != null) {
                     RecordatorioResponse r = response.body();
-                    if (r.isAvisar()) {
-                        recordatorioEvent.postValue(new Event<>(r));
-                    }
+                    if (r.isAvisar()) recordatorioEvent.postValue(new Event<>(r));
                 }
             }
-
             @Override
-            public void onFailure(@NonNull Call<RecordatorioResponse> call, @NonNull Throwable t) {
-            }
+            public void onFailure(@NonNull Call<RecordatorioResponse> call, @NonNull Throwable t) { }
         });
     }
 
@@ -155,42 +167,27 @@ public class MainViewModel extends ViewModel {
         repo.obtenerHistorial(bearer, new Callback<List<FichajeResponse>>() {
             @Override
             public void onResponse(@NonNull Call<List<FichajeResponse>> call, @NonNull Response<List<FichajeResponse>> response) {
-                if (response.code() == 401) {
-                    logoutEvent.postValue(new Event<>(true));
-                    return;
-                }
-
                 if (response.isSuccessful() && response.body() != null) {
-                    List<FichajeResponse> lista = response.body();
-                    historial.postValue(lista);
-                    historialDialogEvent.postValue(new Event<>(lista));
+                    historialDialogEvent.postValue(new Event<>(response.body()));
                 } else {
-                    toastEvent.postValue(new Event<>("Error al cargar historial"));
+                    toastEvent.postValue(new Event<>("No se pudo cargar historial"));
                 }
             }
-
             @Override
             public void onFailure(@NonNull Call<List<FichajeResponse>> call, @NonNull Throwable t) {
-                toastEvent.postValue(new Event<>("Error de conexión"));
+                toastEvent.postValue(new Event<>("Error de red"));
             }
         });
     }
 
     public void cambiarPassword(@NonNull String bearer, @NonNull String actual, @NonNull String nueva) {
-        if (actual.trim().isEmpty() || nueva.trim().isEmpty()) return;
-
         ChangePasswordRequest req = new ChangePasswordRequest(actual, nueva);
-
         repo.changePassword(bearer, req, new Callback<Void>() {
             @Override
             public void onResponse(@NonNull Call<Void> call, @NonNull Response<Void> response) {
-                if (response.code() == 401) {
-                    logoutEvent.postValue(new Event<>(true));
-                    return;
-                }
-                toastEvent.postValue(new Event<>(response.isSuccessful() ? "Clave cambiada" : "Error al cambiar"));
+                if (response.isSuccessful()) toastEvent.postValue(new Event<>("Contraseña actualizada"));
+                else toastEvent.postValue(new Event<>("Error al cambiar contraseña"));
             }
-
             @Override
             public void onFailure(@NonNull Call<Void> call, @NonNull Throwable t) {
                 toastEvent.postValue(new Event<>("Error de red"));

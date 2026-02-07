@@ -84,19 +84,30 @@ public class IncidenciaViewModel extends ViewModel {
 
     private void handleError(Response<?> response) {
         if (response.code() == 401) {
-            toastEvent.postValue(new Event<>("Sesión caducada"));
+            toastEvent.postValue(new Event<>("Tu sesión ha caducado"));
             logoutEvent.postValue(new Event<>(true));
             return;
         }
 
-        String msg = "Error " + response.code();
-        try {
-            if (response.errorBody() != null) {
-                // Leemos el mensaje real del servidor (ej: "fecha_inicio invalid format")
-                msg = "Server: " + response.errorBody().string();
+        String errorMsg;
+        if (response.code() == 422) {
+            try {
+                String raw = response.errorBody() != null ? response.errorBody().string() : "";
+                if (raw.contains("fecha")) errorMsg = "Revisa el formato de las fechas";
+                else if (raw.contains("password")) errorMsg = "La contraseña no es válida";
+                else errorMsg = "Datos incorrectos. Revisa el formulario.";
+            } catch (Exception e) {
+                errorMsg = "Datos no válidos";
             }
-        } catch (Exception e) { }
-        toastEvent.postValue(new Event<>(msg));
+        } else if (response.code() == 403) {
+            errorMsg = "No tienes permiso para hacer esto";
+        } else if (response.code() >= 500) {
+            errorMsg = "Error del servidor. Inténtalo luego.";
+        } else {
+            errorMsg = "Ocurrió un error (" + response.code() + ")";
+        }
+
+        toastEvent.postValue(new Event<>(errorMsg));
     }
 
     @Override

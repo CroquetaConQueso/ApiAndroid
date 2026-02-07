@@ -28,12 +28,19 @@ public interface ApiService {
 
     // --- ZONA FICHAJES ---
 
-    // Este endpoint ahora sirve para fichaje manual Y para NFC
-    // (FichajeRequest incluye el campo opcional nfc_data)
+    // Este endpoint sirve para fichaje normal (GPS).
+    // Si tu backend también acepta nfc_data opcional aquí, perfecto; no lo rompemos.
     @POST("api/fichar")
     Call<FichajeResponse> fichar(
             @Header("Authorization") String token,
             @Body FichajeRequest request
+    );
+
+    // NUEVO (recomendado): fichaje NFC en endpoint dedicado (JWT + UID como 2ª verificación)
+    @POST("api/fichajes/fichar-nfc")
+    Call<FichajeResponse> ficharNfc(
+            @Header("Authorization") String token,
+            @Body NfcFichajeRequest request
     );
 
     @GET("api/mis-fichajes")
