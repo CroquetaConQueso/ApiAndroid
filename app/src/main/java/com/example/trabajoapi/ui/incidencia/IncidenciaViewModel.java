@@ -43,16 +43,10 @@ public class IncidenciaViewModel extends ViewModel {
         crearCall.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.code() == 401) {
-                    toastEvent.postValue(new Event<>("Sesión caducada"));
-                    logoutEvent.postValue(new Event<>(true));
-                    return;
-                }
-
                 if (response.isSuccessful()) {
                     toastEvent.postValue(new Event<>("¡Solicitud Enviada!"));
                 } else {
-                    toastEvent.postValue(new Event<>("Error " + response.code()));
+                    handleError(response);
                 }
             }
 
@@ -73,16 +67,10 @@ public class IncidenciaViewModel extends ViewModel {
         histCall.enqueue(new Callback<List<IncidenciaResponse>>() {
             @Override
             public void onResponse(Call<List<IncidenciaResponse>> call, Response<List<IncidenciaResponse>> response) {
-                if (response.code() == 401) {
-                    toastEvent.postValue(new Event<>("Sesión caducada"));
-                    logoutEvent.postValue(new Event<>(true));
-                    return;
-                }
-
                 if (response.isSuccessful() && response.body() != null) {
                     historialEvent.postValue(new Event<>(response.body()));
                 } else {
-                    toastEvent.postValue(new Event<>("Error al cargar historial (" + response.code() + ")"));
+                    handleError(response);
                 }
             }
 
@@ -92,6 +80,23 @@ public class IncidenciaViewModel extends ViewModel {
                 toastEvent.postValue(new Event<>("Error Red: " + (t.getMessage() != null ? t.getMessage() : "")));
             }
         });
+    }
+
+    private void handleError(Response<?> response) {
+        if (response.code() == 401) {
+            toastEvent.postValue(new Event<>("Sesión caducada"));
+            logoutEvent.postValue(new Event<>(true));
+            return;
+        }
+
+        String msg = "Error " + response.code();
+        try {
+            if (response.errorBody() != null) {
+                // Leemos el mensaje real del servidor (ej: "fecha_inicio invalid format")
+                msg = "Server: " + response.errorBody().string();
+            }
+        } catch (Exception e) { }
+        toastEvent.postValue(new Event<>(msg));
     }
 
     @Override

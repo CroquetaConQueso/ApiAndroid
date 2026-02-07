@@ -43,6 +43,7 @@ public class IncidenciaHelper {
         layout.setPadding(50, 20, 50, 20);
 
         final Spinner spinnerTipo = new Spinner(context);
+        // IMPORTANTE: Valores en MAYÚSCULAS para cumplir con validate.OneOf del servidor
         String[] tipos = {"VACACIONES", "BAJA", "ASUNTOS_PROPIOS", "HORAS_EXTRA", "OLVIDO"};
         ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, tipos);
         spinnerTipo.setAdapter(adapter);
@@ -91,12 +92,16 @@ public class IncidenciaHelper {
         int dia = cal.get(Calendar.DAY_OF_MONTH);
 
         DatePickerDialog dpd = new DatePickerDialog(context, (view, year, month, dayOfMonth) -> {
-            String fechaFormat = String.format(Locale.getDefault(), "%04d-%02d-%02d", year, month + 1, dayOfMonth);
+            // CORRECCIÓN CRÍTICA: Locale.US fuerza YYYY-MM-DD (ISO 8601)
+            // Evita error 422 si el móvil está en otro idioma.
+            String fechaFormat = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth);
             editText.setText(fechaFormat);
         }, anio, mes, dia);
 
         dpd.show();
     }
+
+    // ... (El resto de métodos mostrarDialogoHistorial y mostrarToastPop se mantienen igual) ...
 
     public void mostrarDialogoHistorial(List<IncidenciaResponse> lista) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);

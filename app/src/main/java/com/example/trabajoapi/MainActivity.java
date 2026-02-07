@@ -464,20 +464,31 @@ public class MainActivity extends AppCompatActivity {
         layout.addView(etActual);
 
         final EditText etNueva = new EditText(this);
-        etNueva.setHint("Nueva");
+        etNueva.setHint("Nueva (min 6 caracteres)");
         etNueva.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         layout.addView(etNueva);
 
         builder.setView(layout);
+
         builder.setPositiveButton("GUARDAR", (dialog, which) -> {
-            String actual = etActual.getText().toString();
-            String nueva = etNueva.getText().toString();
+            String actual = etActual.getText().toString().trim();
+            String nueva = etNueva.getText().toString().trim();
+
+            if (actual.isEmpty() || nueva.isEmpty()) {
+                mostrarToastPop("Completa ambos campos", false);
+                return;
+            }
+
+            // VALIDACIÓN CLAVE: Evita el 422 del servidor
+            if (nueva.length() < 6) {
+                mostrarToastPop("La contraseña es muy corta (mínimo 6)", false);
+                return;
+            }
 
             String token = sessionManager.getAuthToken();
-            if (token == null) return;
-
-            vm.cambiarPassword("Bearer " + token, actual, nueva);
+            if (token != null) vm.cambiarPassword("Bearer " + token, actual, nueva);
         });
+
         builder.setNegativeButton("CANCELAR", null);
         builder.show();
     }
