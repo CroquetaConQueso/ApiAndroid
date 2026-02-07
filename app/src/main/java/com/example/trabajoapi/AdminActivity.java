@@ -18,25 +18,34 @@ public class AdminActivity extends AppCompatActivity {
 
         sessionManager = new SessionManager(this);
 
-        // Botón Volver (Flecha atrás)
+        // 1. Botón Volver (Flecha atrás)
         ImageView btnVolver = findViewById(R.id.btnVolverAdmin);
         if (btnVolver != null) {
             btnVolver.setOnClickListener(v -> finish());
         }
 
-        // Botón Empleados (Lista -> Historial)
-        View btnEmpleados = findViewById(R.id.cardEmpleados); // Ojo al ID del XML
+        // 2. Botón Empleados (Lista -> Historial)
+        View btnEmpleados = findViewById(R.id.cardEmpleados);
         if (btnEmpleados != null) {
             btnEmpleados.setOnClickListener(v ->
                     startActivity(new Intent(AdminActivity.this, AdminEmpleadosActivity.class))
             );
         }
 
-        // Botón Mapa
+        // 3. Botón Mapa (Configurar Ubicación)
         View btnMapa = findViewById(R.id.cardMapa);
         if (btnMapa != null) {
             btnMapa.setOnClickListener(v ->
                     startActivity(new Intent(AdminActivity.this, AdminMapaActivity.class))
+            );
+        }
+
+        // 4. NUEVO: Botón Configurar NFC (Torno Digital)
+        // Este ID 'btnConfigNfc' lo definimos en el XML activity_admin.xml
+        View btnConfigNfc = findViewById(R.id.btnConfigNfc);
+        if (btnConfigNfc != null) {
+            btnConfigNfc.setOnClickListener(v ->
+                    startActivity(new Intent(AdminActivity.this, AdminNfcConfigActivity.class))
             );
         }
     }

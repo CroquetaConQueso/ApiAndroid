@@ -3,12 +3,14 @@ package com.example.trabajoapi.data.repository;
 import com.example.trabajoapi.data.ApiService;
 import com.example.trabajoapi.data.EmpresaConfigResponse;
 import com.example.trabajoapi.data.FichajeResponse;
+import com.example.trabajoapi.data.NfcFichajeRequest;
 import com.example.trabajoapi.data.RetrofitClient;
 import com.example.trabajoapi.data.TrabajadorResponse;
 
 import java.util.List;
 
 import retrofit2.Call;
+import retrofit2.Callback;
 
 public class AdminRepository {
 
@@ -35,5 +37,10 @@ public class AdminRepository {
 
     public Call<Void> updateEmpresaConfig(String bearerToken, EmpresaConfigResponse config) {
         return api.updateEmpresaConfig(bearerToken, config);
+    }
+
+    public void updateEmpresaNfc(String token, String nfcData, Callback<Void> callback) {
+        NfcFichajeRequest request = new NfcFichajeRequest(nfcData, 0.0, 0.0);
+        api.updateEmpresaNfc(token, request).enqueue(callback);
     }
 }

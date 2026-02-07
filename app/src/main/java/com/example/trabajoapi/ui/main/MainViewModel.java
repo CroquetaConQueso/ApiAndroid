@@ -138,12 +138,14 @@ public class MainViewModel extends ViewModel {
             String err = "Fichaje fallido";
             try {
                 if (response.errorBody() != null) {
+                    // Aquí capturamos el mensaje REAL del servidor (ej: "Lejos de la empresa (200m)")
                     err = response.errorBody().string();
                 }
             } catch (Exception ignored) {}
 
-            // Mensaje amigable si es por distancia o NFC incorrecto
-            if (response.code() == 403) err = "⛔ Acceso Denegado: ¿Estás en la empresa?";
+            // --- CORRECCIÓN AQUÍ ---
+            // Hemos eliminado el 'if' que sobrescribía el mensaje cuando era 403.
+            // Ahora verás el JSON o texto que envía Python.
 
             toastEvent.postValue(new Event<>(err));
         }
