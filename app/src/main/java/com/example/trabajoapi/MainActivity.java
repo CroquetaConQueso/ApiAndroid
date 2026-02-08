@@ -18,6 +18,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatButton;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
@@ -63,10 +64,20 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
     private SessionManager sessionManager;
     private FusedLocationProviderClient fusedLocationClient;
 
+    // UI principal
     private MaterialButton btnFicharMain;
     private TextView tvHorasExtraValor;
     private TextView tvEstadoHoras;
 
+    // Card/Badges nuevos (layout actualizado)
+    private ConstraintLayout cardHorasExtra;
+    private TextView tvBadgeRevision;
+    private TextView tvInfoRevision;
+
+    // Si el permiso de GPS salta por un fichaje NFC, guardamos el UID hasta que el usuario acepte.
+    private String pendingNfcCode = null;
+
+    // Avisos/notificaciones
     private String avisoTituloPendiente = null;
     private String avisoMensajePendiente = null;
 
@@ -90,11 +101,13 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         // Prepara la escucha NFC para poder fichar con tarjeta.
         nfcController = new NfcFichajeController(this);
 
+        // VM principal (dashboard: dentro/resumen/fichaje/historial/recordatorio)
         vm = new ViewModelProvider(
                 this,
                 new MainViewModelFactory(new MainRepository())
         ).get(MainViewModel.class);
 
+        // VM incidencias (crear + historial)
         ivm = new ViewModelProvider(
                 this,
                 new IncidenciaViewModelFactory(new IncidenciaRepository())
@@ -103,9 +116,21 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
         // Centraliza UI auxiliar para diálogos y mensajes relacionados con incidencias.
         incidenciaHelper = new IncidenciaHelper(this);
 
+        // --- BIND UI (IDs del layout) ---
         btnFicharMain = findViewById(R.id.btnFicharMain);
         tvHorasExtraValor = findViewById(R.id.tvHorasExtraValor);
         tvEstadoHoras = findViewById(R.id.tvEstadoHoras);
+
+        // NUEVOS: card + badges (ya existen en tu XML)
+        cardHorasExtra = findViewById(R.id.cardHorasExtra);
+        tvBadgeRevision = findViewById(R.id.tvBadgeRevision);
+        tvInfoRevision = findViewById(R.id.tvInfoRevision);
+
+        // Estado inicial para evitar “--”
+        tvHorasExtraValor.setText("...");
+        tvEstadoHoras.setText("CALCULANDO...");
+        if (tvBadgeRevision != null) tvBadgeRevision.setVisibility(View.GONE);
+        if (tvInfoRevision != null) tvInfoRevision.setVisibility(View.GONE);
 
         ImageView btnLogout = findViewById(R.id.btnLogoutIcon);
         AppCompatButton btnIncidencia = findViewById(R.id.btnIncidencia);
@@ -249,27 +274,72 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
 
     // Vincula estados y eventos del VM principal con cambios directos de la pantalla.
     private void observarVM() {
+
         vm.getDentro().observe(this, this::actualizarBotonFichaje);
 
         vm.getResumen().observe(this, r -> {
-            if (r == null) return;
+
+            // Placeholder inicial (evita "--")
+            tvHorasExtraValor.setText("...");
+            tvHorasExtraValor.setTextColor(ContextCompat.getColor(this, R.color.black));
+            tvEstadoHoras.setText("CALCULANDO...");
+
+            // Ocultamos info de revisión por defecto
+            if (tvBadgeRevision != null) tvBadgeRevision.setVisibility(View.GONE);
+            if (tvInfoRevision != null) tvInfoRevision.setVisibility(View.GONE);
+
+            if (r == null) {
+                tvHorasExtraValor.setText("+0.00 h");
+                tvHorasExtraValor.setTextColor(ContextCompat.getColor(this, R.color.black));
+                tvEstadoHoras.setText("SIN DATOS DEL MES");
+                return;
+            }
+
+            // Si el cálculo no es confiable, NO mostramos el saldo como algo definitivo
+            if (!r.isCalculoConfiable()) {
+                tvHorasExtraValor.setText("+0.00 h");
+                tvHorasExtraValor.setTextColor(ContextCompat.getColor(this, R.color.pop_yellow));
+                tvEstadoHoras.setText("PENDIENTE DE REVISIÓN");
+
+                if (tvBadgeRevision != null) tvBadgeRevision.setVisibility(View.VISIBLE);
+                if (tvInfoRevision != null) tvInfoRevision.setVisibility(View.VISIBLE);
+                return;
+            }
+
+            // B6: mostrar HORAS EXTRA (sin mensajes tipo “debes a la empresa”)
             double saldo = r.getSaldo();
-            if (saldo >= 0) {
-                tvHorasExtraValor.setText("+" + saldo + " h");
+            double extra = Math.max(0.0, saldo);
+
+            tvHorasExtraValor.setText(String.format("+%.2f h", extra));
+
+            if (extra > 0.0) {
                 tvHorasExtraValor.setTextColor(ContextCompat.getColor(this, R.color.pop_green));
-                tvEstadoHoras.setText("TIENES HORAS EXTRA ACUMULADAS");
+                tvEstadoHoras.setText("HORAS EXTRA ACUMULADAS");
             } else {
-                tvHorasExtraValor.setText(saldo + " h");
-                tvHorasExtraValor.setTextColor(ContextCompat.getColor(this, R.color.pop_red));
-                tvEstadoHoras.setText("DEBES HORAS A LA EMPRESA");
+                tvHorasExtraValor.setTextColor(ContextCompat.getColor(this, R.color.black));
+                if (saldo < 0) {
+                    tvEstadoHoras.setText("SIN HORAS EXTRA (MES EN NEGATIVO)");
+                } else {
+                    tvEstadoHoras.setText("AÚN NO HAY HORAS EXTRA ESTE MES");
+                }
             }
         });
+
+        // Click en la card: muestra detalle completo (cumple B6 sin tocar layout)
+        if (cardHorasExtra != null) {
+            cardHorasExtra.setOnClickListener(v -> {
+                com.example.trabajoapi.data.ResumenResponse res = vm.getResumen().getValue();
+                if (res != null) mostrarDetalleResumen(res);
+            });
+        }
 
         vm.getToastEvent().observe(this, e -> {
             if (e == null) return;
             String msg = e.getContentIfNotHandled();
             if (msg != null) {
-                boolean ok = msg.toUpperCase().contains("EXITOSA") || msg.toUpperCase().contains("OK") || msg.contains("Clave cambiada");
+                boolean ok = msg.toUpperCase().contains("EXITOSA")
+                        || msg.toUpperCase().contains("OK")
+                        || msg.contains("Clave cambiada");
                 mostrarToastPop(msg, ok);
             }
         });
@@ -300,6 +370,56 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
             Boolean must = e.getContentIfNotHandled();
             if (must != null && must) irALogin();
         });
+    }
+
+    /**
+     * Resumen detallado (B6): trabajadas vs teóricas, y horas extra del mes.
+     * Además, si no es confiable, informa días con fichajes incompletos.
+     */
+    private void mostrarDetalleResumen(com.example.trabajoapi.data.ResumenResponse r) {
+        if (r == null) return;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Mes: ").append(r.getMes()).append("\n\n");
+        sb.append("Teóricas: ").append(String.format("%.2f", r.getTeoricas())).append(" h\n");
+        sb.append("Trabajadas: ").append(String.format("%.2f", r.getTrabajadas())).append(" h\n");
+
+        // El “saldo” existe en el backend, pero aquí lo usamos solo como base para extra/pendiente.
+        sb.append("Diferencia: ").append(String.format("%.2f", r.getSaldo())).append(" h\n\n");
+
+        if (!r.isCalculoConfiable()) {
+            sb.append("⚠ Cálculo pendiente de revisión.\n");
+            List<String> dias = r.getDiasIncompletos();
+            if (dias != null && !dias.isEmpty()) {
+                sb.append("Días incompletos: ").append(joinDias(dias)).append("\n");
+            } else {
+                sb.append("Motivo: faltan fichajes o pares ENTRADA/SALIDA.\n");
+            }
+        } else {
+            if (r.getSaldo() >= 0) {
+                sb.append("Horas extra (mes): ").append(String.format("%.2f", r.getSaldo())).append(" h\n");
+            } else {
+                sb.append("Horas extra (mes): 0.00 h\n");
+                sb.append("Horas pendientes (mes): ").append(String.format("%.2f", Math.abs(r.getSaldo()))).append(" h\n");
+            }
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("RESUMEN MENSUAL")
+                .setMessage(sb.toString())
+                .setPositiveButton("CERRAR", null)
+                .show();
+    }
+
+    // Join compatible con minSdk bajo (evita String.join que requiere API 26).
+    private String joinDias(List<String> dias) {
+        if (dias == null || dias.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < dias.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(dias.get(i));
+        }
+        return sb.toString();
     }
 
     // Refleja en la UI los resultados de creación y consulta del historial.
@@ -373,11 +493,16 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
                 == PackageManager.PERMISSION_GRANTED) {
             obtenerUbicacionYFichar(nfcCode);
         } else {
+            // Guardamos el NFC (si venía de tarjeta) para no perderlo al aceptar permisos.
+            pendingNfcCode = nfcCode;
+
             ActivityCompat.requestPermissions(
                     this,
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                     PERMISSION_ID
             );
+
+            // Si era fichaje manual, reactivamos botón (en NFC no lo bloqueamos)
             if (nfcCode == null) btnFicharMain.setEnabled(true);
         }
     }
@@ -566,13 +691,19 @@ public class MainActivity extends AppCompatActivity implements NfcFichajeControl
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
         if (requestCode == PERMISSION_ID) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                obtenerUbicacionYFichar(null);
+                // Continuamos exactamente el flujo pendiente (manual o NFC)
+                String nfc = pendingNfcCode;
+                pendingNfcCode = null;
+                obtenerUbicacionYFichar(nfc);
             } else {
+                pendingNfcCode = null;
                 btnFicharMain.setEnabled(true);
             }
         }
+
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 intentarMostrarAvisoPendiente();

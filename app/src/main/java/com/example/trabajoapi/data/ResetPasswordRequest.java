@@ -1,14 +1,18 @@
 package com.example.trabajoapi.data;
 
-public class ResetPasswordRequest {
-    private String identificador;
+import com.google.gson.annotations.SerializedName;
 
-    // Encapsula el email/identificador para enviarlo al endpoint de recuperación.
-    public ResetPasswordRequest(String identificador) {
-        this.identificador = identificador;
+public class ResetPasswordRequest {
+    // Usamos @SerializedName para que Retrofit envíe "email" en el JSON
+    // independientemente del nombre de la variable en Java.
+    @SerializedName("email")
+    private String email;
+
+    public ResetPasswordRequest(String email) {
+        this.email = email;
     }
 
-    public String getIdentificador() {
-        return identificador;
+    public String getEmail() {
+        return email;
     }
 }
